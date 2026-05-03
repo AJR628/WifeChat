@@ -1,7 +1,7 @@
-import { ChatShell } from "@/components/ChatShell";
+import { RelationshipStudio } from "@/components/RelationshipStudio";
 
 function App() {
-  return <ChatShell />;
+  return <RelationshipStudio />;
 }
 
 export default App;
