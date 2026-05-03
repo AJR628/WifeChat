@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/wife-chat-mobile/"
+title = "Wife Chat Mobile"
+version = "1.0.0"
+id = "artifacts/wife-chat-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/wife-chat-mobile/" ]
+localPort = 22126
+
+[services.development]
+run = "pnpm --filter @workspace/wife-chat-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/wife-chat-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/wife-chat-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "22126"
+BASE_PATH = "/wife-chat-mobile/"

@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "bhAL5M_Kt1RSO0QgH7YUX"
+uri = "file://artifacts/wife-chat-mobile/assets/images/icon.png"
+type = "image"
+title = "wife chat icon"
