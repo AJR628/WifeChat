@@ -75,6 +75,26 @@ and `/api/coach/*` are mounted.
 - **Body parsing**: only `express.json({ limit: "64kb" })`. The unused
   `express.urlencoded(...)` middleware was removed.
 
+#### Coach cost / timeout / kill switch (Phase 2)
+
+- **`MAX_COMPLETION_TOKENS = 1500`** (`artifacts/api-server/src/routes/coach.ts`):
+  caps worst-case spend per OpenAI call; the coach JSON schemas are
+  compact so this is well above the realistic ceiling for a full payload.
+- **OpenAI client timeout**: a lazy singleton `OpenAI` instance is built
+  on first request with `timeout: 30_000` (30 s). Reused across requests.
+  If credentials are missing the route returns `500 { error: "Server is
+  not configured for the assistant." }` and the server stays up.
+- **`COACH_API_DISABLED=true`** kill switch: short-circuits every
+  `/api/coach/*` request with `503 { error: "The coach is temporarily
+  unavailable. Please try again later." }` **before** the rate limiter
+  and **before** any OpenAI call. Toggling the env var and restarting
+  the workflow is the fastest brake on cost or abuse.
+- The optional `COACH_DAILY_REQUEST_CAP` process-level counter is
+  **deferred** — the safety plan marks it optional and a memory-only,
+  per-process counter that resets on every restart and does not work
+  across instances would be misleading without a persistent store.
+  Revisit alongside Phase 7 (durable rate limiting / quotas).
+
 #### Deployment assumption — `trust proxy: 1`
 
 `app.set("trust proxy", 1)` (`artifacts/api-server/src/app.ts`) assumes

@@ -6,6 +6,30 @@ const router = Router();
 
 const MODEL = "gpt-5-mini";
 const MAX_INPUT_CHARS = 4000;
+// Phase 2 cost guardrail: the coach JSON schemas are compact (≈7 short string
+// fields per tool, occasionally a small array). 1500 completion tokens is well
+// above the realistic ceiling for a full structured response and caps
+// worst-case spend per request at ~10× lower than the previous 8192.
+const MAX_COMPLETION_TOKENS = 1500;
+// Phase 2 timeout guardrail: cap upstream wait so a hung OpenAI call cannot
+// pin a Node worker indefinitely. Applied at the SDK-client level.
+const OPENAI_TIMEOUT_MS = 30_000;
+
+// Phase 2 kill switch: when set to "true", every /api/coach/* request is
+// short-circuited with a 503 BEFORE rate limiting and BEFORE any OpenAI call,
+// so the toggle is effectively instant.
+const KILL_SWITCH_ENV = "COACH_API_DISABLED";
+function coachKillSwitch(req: Request, res: Response, next: () => void): void {
+  if (process.env[KILL_SWITCH_ENV] === "true") {
+    req.log?.warn({ event: "coach_kill_switch" }, "Coach API disabled by env");
+    res.status(503).json({
+      error: "The coach is temporarily unavailable. Please try again later.",
+    });
+    return;
+  }
+  next();
+}
+router.use("/coach", coachKillSwitch);
 
 const SAFETY_PROMPT = `You are a relationship communication coach inside an app called WifeChat / Relationship Studio.
 
@@ -250,6 +274,13 @@ Return JSON for the DailyCheckIn schema. Keep partnerMessage natural enough to a
   },
 };
 
+// Phase 2: lazy singleton OpenAI client. Constructed on first successful
+// credential read so the server does not crash at import time if env vars
+// are missing. Reused across requests so the SDK can pool connections and
+// so we have one place to enforce the request timeout.
+let openaiSingleton: OpenAI | null = null;
+let openaiSingletonKeyFingerprint: string | null = null;
+
 function getOpenAI(req: Request, res: Response): OpenAI | null {
   const baseURL = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"];
   const apiKey =
@@ -259,7 +290,18 @@ function getOpenAI(req: Request, res: Response): OpenAI | null {
     res.status(500).json({ error: "Server is not configured for the assistant." });
     return null;
   }
-  return new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+  // Rebuild the singleton if the credential identity changes (e.g. env reload
+  // in dev). Fingerprint is base+key length, no secret value is logged.
+  const fingerprint = `${baseURL ?? ""}:${apiKey.length}:${apiKey.slice(-4)}`;
+  if (!openaiSingleton || openaiSingletonKeyFingerprint !== fingerprint) {
+    openaiSingleton = new OpenAI({
+      apiKey,
+      timeout: OPENAI_TIMEOUT_MS,
+      ...(baseURL ? { baseURL } : {}),
+    });
+    openaiSingletonKeyFingerprint = fingerprint;
+  }
+  return openaiSingleton;
 }
 
 function passcodeOk(req: Request, res: Response): boolean {
@@ -305,7 +347,7 @@ async function runTool(tool: ToolDef, req: Request, res: Response): Promise<void
   try {
     const completion = await openai.chat.completions.create({
       model: MODEL,
-      max_completion_tokens: 8192,
+      max_completion_tokens: MAX_COMPLETION_TOKENS,
       messages: [
         { role: "system", content: SAFETY_PROMPT },
         { role: "user", content: userPrompt },

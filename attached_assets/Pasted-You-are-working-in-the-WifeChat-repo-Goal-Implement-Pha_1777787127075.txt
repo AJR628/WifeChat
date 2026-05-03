@@ -1,0 +1,83 @@
+You are working in the WifeChat repo.
+
+Goal:
+Implement Phase 2 — Cost + Timeout Guardrails from docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md.
+
+Important:
+- Audit first with exact file:line evidence.
+- Make no assumptions.
+- Implement only Phase 2.
+- Do not implement Phase 3 logging cleanup.
+- Do not implement Phase 4 safety intercept.
+- Do not add auth, billing, database, Redis, Stripe, saved history, or new product features.
+- Do not change mobile UI.
+- Do not change coach prompt behavior beyond the minimum needed for timeout/cost guardrails.
+- Do not reintroduce /api/chat.
+- Keep changes minimal and easy to review.
+
+Phase 2 scope:
+1. Reduce max_completion_tokens.
+   - Verify the current value in artifacts/api-server/src/routes/coach.ts.
+   - Replace the current high value with a named constant, suggested:
+     MAX_COMPLETION_TOKENS = 1500.
+   - Add a short inline comment explaining this limits worst-case spend because the coach JSON schemas are compact.
+   - Happy-path responses must still return complete structured payloads.
+
+2. Add an OpenAI singleton with timeout.
+   - Verify the installed OpenAI SDK version and types before assuming the timeout API.
+   - Prefer a lazy singleton so the server does not crash at import time if OpenAI env vars are missing.
+   - Existing behavior should remain: if credentials are missing, the route returns a clean 500 JSON error.
+   - Use existing env behavior:
+     AI_INTEGRATIONS_OPENAI_BASE_URL
+     AI_INTEGRATIONS_OPENAI_API_KEY
+     OPENAI_API_KEY
+   - Suggested timeout: 30 seconds.
+   - If the SDK supports constructor timeout, use it.
+   - If not, use the safest supported request-level timeout/AbortController approach after verifying types.
+   - Do not log raw prompts, raw model output, request bodies, or full provider payloads.
+
+3. Add a kill switch.
+   - Add COACH_API_DISABLED=true support.
+   - It should short-circuit every /api/coach/* request with 503 before rate limiting and before OpenAI.
+   - Response should be friendly JSON, e.g.
+     { "error": "The coach is temporarily unavailable. Please try again later." }
+   - Include requestId automatically if the existing error envelope/middleware does that, but do not create a new response contract unless necessary.
+
+4. Optional process-level daily cap.
+   - First verify whether docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md treats this as optional.
+   - Prefer deferring this unless it is very small and clearly isolated.
+   - If implemented, it must be behind COACH_DAILY_REQUEST_CAP and clearly commented as:
+     memory-only, process-local, resets on restart, non-production.
+   - Do not add Redis/Postgres/persistent quota storage.
+
+5. Documentation.
+   - Update replit.md with:
+     COACH_API_DISABLED
+     OpenAI timeout
+     MAX_COMPLETION_TOKENS value
+     Any optional COACH_DAILY_REQUEST_CAP if implemented
+   - Update docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md:
+     - Mark Phase 2 shipped if all acceptance criteria are met.
+     - Include what changed.
+     - Include verification results.
+     - Include behavior changes visible to clients.
+     - List remaining risks deferred to later phases.
+
+Verification required:
+- pnpm --filter @workspace/api-server typecheck
+- pnpm --filter @workspace/wife-chat-mobile typecheck
+- rg -n "api/chat|chatRouter|routes/chat" artifacts/ should show no live route
+- Verify COACH_API_DISABLED=true returns 503 for /api/coach/before-send before OpenAI is called.
+- Verify normal /api/coach/before-send still returns a complete payload.
+- Verify missing OpenAI credentials still returns a clean configured error and does not crash the server.
+- If timeout behavior can be tested safely, test it. If not, document why and verify by typecheck/code review.
+- Run code review after implementation.
+
+Deliver:
+1. Audit findings with file:line evidence.
+2. Decision on whether optional COACH_DAILY_REQUEST_CAP was implemented or deferred.
+3. Files changed.
+4. Commands run and results.
+5. Behavior changes visible to clients.
+6. Updated safety plan summary.
+7. Confirmation that /api/chat was not reintroduced.

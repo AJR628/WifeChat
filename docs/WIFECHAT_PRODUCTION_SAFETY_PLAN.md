@@ -311,11 +311,88 @@ pnpm --filter @workspace/api-server typecheck
 
 ---
 
-### Phase 2 — Cost + Timeout Guardrails
+### Phase 2 — Cost + Timeout Guardrails ✅ Shipped (May 2026)
 
 **Goal:** Cap worst-case spend per call and prevent hung upstream calls
 (R4, R5, R6). Add a temporary kill switch and an optional process-level
 daily cap, both clearly marked as non-production.
+
+**What changed (`artifacts/api-server/src/routes/coach.ts`):**
+- Introduced `MAX_COMPLETION_TOKENS = 1500` constant (replacing the
+  previous hard-coded `8192`) with an inline comment justifying the
+  value against schema sizes. Used at the OpenAI call site.
+- Replaced per-request `new OpenAI(...)` with a **lazy singleton**
+  built on first successful credential read with
+  `timeout: 30_000` (30 s). The singleton is rebuilt only if the
+  credential identity (base URL + key length + last 4 chars of key)
+  changes — no secret value is logged. If credentials are missing the
+  existing `500 { error: "Server is not configured for the assistant." }`
+  contract is preserved and the server does not crash at import or
+  request time.
+- Added `COACH_API_DISABLED=true` kill switch as a router-level
+  middleware mounted on `/coach`, executed **before** passcode,
+  **before** rate limit, and **before** OpenAI. Returns
+  `503 { error: "The coach is temporarily unavailable. Please try again later." }`.
+  Logs a single `{ event: "coach_kill_switch" }` line — no body, no
+  prompt content.
+- The optional `COACH_DAILY_REQUEST_CAP` is **deferred**: the plan
+  marks it optional and a memory-only, per-process counter that resets
+  on every restart and does not coordinate across instances would be
+  misleading without a persistent store. Will revisit alongside Phase 7
+  (durable rate limiting / quotas).
+
+No SDK was upgraded; `openai@^6.35.0` already supports a constructor
+`timeout?: number` (verified in `node_modules/openai/client.d.ts:81`).
+
+**Verification (run on this machine):**
+- `pnpm --filter @workspace/api-server typecheck` → pass.
+- `pnpm --filter @workspace/wife-chat-mobile typecheck` → pass.
+- `rg -n "api/chat|chatRouter|routes/chat" artifacts/` → no matches
+  (`/api/chat` was not reintroduced).
+- Normal happy-path call:
+  `POST /api/coach/before-send {"message":"You never listen to me."}`
+  → `200` with a complete `BeforeYouSend` payload (all 7 schema fields
+  populated). Confirms `MAX_COMPLETION_TOKENS=1500` is sufficient for a
+  full structured response.
+- Kill switch:
+  `COACH_API_DISABLED=true node ./dist/index.mjs` then
+  `POST /api/coach/before-send` → `503` with body
+  `{"error":"The coach is temporarily unavailable. Please try again later."}`,
+  `X-Request-Id` header present, log shows `event: "coach_kill_switch"`,
+  no OpenAI call attempted.
+- Missing credentials:
+  `env -u AI_INTEGRATIONS_OPENAI_API_KEY -u AI_INTEGRATIONS_OPENAI_BASE_URL -u OPENAI_API_KEY node ./dist/index.mjs`
+  then `POST /api/coach/before-send` → `500` with body
+  `{"error":"Server is not configured for the assistant."}`. Process
+  remains alive; a follow-up request returns the same clean `500`.
+- **Timeout** is not directly exercised in this verification because we
+  do not stub OpenAI in this repo and forcing a real upstream hang
+  would cost a request slot. The 30 s constructor timeout is enforced
+  by the SDK (`OpenAI({ timeout })`, `client.d.ts:76-81`); behavior on
+  trip will surface as the existing `502 { error: "Failed to reach the
+  assistant. Please try again." }` envelope via the existing `catch`
+  block in `runTool`. No new error path was introduced.
+
+**Behavior changes visible to clients:**
+- Successful coach responses are unchanged in shape and content.
+  Worst-case latency on a hung upstream is now bounded at ~30 s
+  instead of unbounded.
+- When `COACH_API_DISABLED=true` is set on the deployed process, every
+  `/api/coach/*` route returns `503` with the friendly error message
+  above. This is intentional and is the operator's brake.
+- A request made when env credentials are missing now reuses the same
+  configured-error `500` it already returned, but no longer constructs
+  a fresh `OpenAI` per attempt.
+
+**Remaining risks (intentionally deferred to later phases):**
+- R2 — relationship content still echoed into logs at
+  `coach.ts:373` (`{ raw }`), `:380` (`{ parsed }`), and `:395`
+  (`{ err, status }`). **Phase 3.**
+- R3 — no deterministic safety intercept. **Phase 4.**
+- R7 — frontend "Not stored" claim still overstated. **Phase 5.**
+- R11 — in-memory rate limiter; per-process daily cap intentionally
+  deferred for the same reason. **Phase 7.**
+- R13, R15, R16, R17, R18 — unchanged.
 
 **Acceptance criteria:**
 - `max_completion_tokens` is reduced from `8192` to a value justified by
