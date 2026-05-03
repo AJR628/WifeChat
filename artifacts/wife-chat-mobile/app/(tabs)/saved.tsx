@@ -159,8 +159,10 @@ export default function SavedScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Saving items is coming soon. Nothing you write today is sent to a
-            cloud account or synced between devices.
+            Saving items is coming soon. Drafts and conversations stay on this
+            device — WifeChat does not sync them to a cloud account in this
+            prototype. When you ask the assistant for help, your text is sent
+            to the WifeChat API and OpenAI to generate a response.
           </Text>
         </View>
       </ScrollView>

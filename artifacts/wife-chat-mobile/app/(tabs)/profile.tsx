@@ -215,9 +215,12 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.privacyText}>
             A communication coach. Not therapy, not crisis support, not a way to
-            track or score your partner. Your drafts live on this device. Text
-            you send to the assistant is processed by an AI provider to generate
-            a reply.
+            track, score, or diagnose your partner. Drafts and conversations
+            are stored on this device. When you ask the assistant for help,
+            your text is sent to the WifeChat API and on to OpenAI to generate
+            a reply. WifeChat does not sync this to a cloud account in this
+            prototype. Crisis numbers shown are US defaults; if you are
+            elsewhere, please use your local emergency or crisis resources.
           </Text>
         </View>
 

@@ -66,7 +66,7 @@ OpenAI credentials (Phase 3 correction):
 
 Model: `gpt-5-mini` (uses `max_completion_tokens`, no `temperature`).
 
-The legacy `POST /api/chat` endpoint has been removed; only `/api/health`
+The legacy `POST /api/chat` endpoint has been removed; only `/api/healthz`
 and `/api/coach/*` are mounted.
 
 #### API perimeter (Phase 1)
@@ -190,5 +190,46 @@ exposure with no proxy, or two hops — `req.ip` will collapse to the
 proxy's address and the per-IP rate limiter will treat all callers as
 one bucket. Re-verify this assumption when changing deployment target
 or adding any reverse proxy in front of Replit.
+
+#### User-facing privacy language (Phase 5)
+
+What the UI now tells users (must stay in sync with the code):
+
+- **Web header chip** (`artifacts/wife-chat/src/components/RelationshipStudio.tsx`):
+  reads **"Private by design · Not therapy"**. The previous overbroad
+  **"Private · Not stored · Not therapy"** was removed because user text is
+  sent to the WifeChat API and on to OpenAI for processing.
+- **Web "How privacy works" dialog**
+  (`artifacts/wife-chat/src/components/PrivacyDialog.tsx`): an in-app modal
+  reachable from the header. Explains, in plain language: what gets sent to
+  the API and AI provider; that WifeChat does not save entries to a cloud
+  account/database in this prototype; that the web app does not persist
+  drafts; that the mobile app may keep recent drafts/conversations on the
+  device only; that server logs are designed to be metadata-only; that
+  safety/crisis language may trigger a static safety response; that the app
+  is not therapy / legal / medical / emergency support; that crisis numbers
+  shown are US defaults. Provider retention is **not** claimed — we tell
+  users to consult the provider's own documentation. No router was added;
+  this is a `Dialog` component to keep the SPA simple.
+- **Web footer disclaimer** (`RelationshipStudio.tsx`): unchanged, retains
+  the US crisis numbers (988, 1-800-799-7233).
+- **Mobile Studio** (`artifacts/wife-chat-mobile/app/(tabs)/index.tsx`):
+  privacy strip now distinguishes "drafts stored on this device" from "text
+  sent to the WifeChat API and OpenAI" when the user invokes the assistant.
+- **Mobile Saved** (`artifacts/wife-chat-mobile/app/(tabs)/saved.tsx`):
+  footer no longer says the unqualified "Nothing you write today is sent…".
+  It now distinguishes "stays on this device / not synced to a cloud
+  account" from "sent to the WifeChat API and OpenAI when you ask the
+  assistant for help."
+- **Mobile Profile** (`artifacts/wife-chat-mobile/app/(tabs)/profile.tsx`):
+  "What this app is" card spells out: not therapy, not crisis support, not
+  a way to track/score/diagnose a partner; drafts/conversations on this
+  device only; assistant requests sent to WifeChat API → OpenAI; not synced
+  to a cloud account; US-default crisis numbers, use local resources
+  outside the US.
+
+Provider retention behavior (OpenAI / Replit AI proxy) remains
+**Unverified**. The UI uses cautious wording and does not promise a
+specific retention window.
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

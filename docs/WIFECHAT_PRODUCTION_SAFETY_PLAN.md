@@ -18,9 +18,12 @@ WifeChat is a two-artifact prototype:
     `artifacts/wife-chat/src/components/tools/*.tsx`.
   - All AI calls flow through one typed client at
     `artifacts/wife-chat/src/lib/coach.ts:79-92`.
-  - Header advertises **"Private · Not stored · Not therapy"**
-    (`RelationshipStudio.tsx:33-35`) — this promise is currently overstated;
-    see Risk **R7** below.
+  - Header advertises **"Private by design · Not therapy"** with a
+    **"How privacy works"** affordance that opens an in-app
+    `PrivacyDialog` modal (`RelationshipStudio.tsx:37-42`,
+    `artifacts/wife-chat/src/components/PrivacyDialog.tsx`). The previous
+    overbroad **"Private · Not stored · Not therapy"** chip was replaced
+    in Phase 5 (R7 resolved).
   - Footer disclaimer with US-only crisis numbers (988, 1-800-799-7233)
     (`RelationshipStudio.tsx:74-83`).
 
@@ -39,12 +42,17 @@ WifeChat is a two-artifact prototype:
     (`coach.ts:265-276`).
   - 64 KB JSON body cap (`app.ts:30`).
   - `trust proxy: 1` (`app.ts:28`).
-  - **Open** `cors()` (`app.ts:29`).
-  - Uses Replit AI proxy when available, falls back to `OPENAI_API_KEY`
-    (`coach.ts:253-263`); model is `gpt-5-mini`
-    (`coach.ts:7`); `max_completion_tokens: 8192` (`coach.ts:308`).
-  - Pino logger redacts only `authorization` / `cookie` /
-    `set-cookie` (`artifacts/api-server/src/lib/logger.ts:7-11`).
+  - **CORS allowlist** driven by `ALLOWED_ORIGINS`
+    (`artifacts/api-server/src/app.ts`, Phase 1). The previous open
+    `cors()` was removed.
+  - Provider selection (Phase 3): `OPENAI_API_KEY` is the **default**;
+    Replit AI Integrations proxy is **opt-in** behind
+    `USE_REPLIT_OPENAI_PROXY=true`
+    (`artifacts/api-server/src/routes/coach.ts`). Model is `gpt-5-mini`;
+    `max_completion_tokens: MAX_COMPLETION_TOKENS = 1500` (Phase 2).
+  - Privacy-safe Pino logger (Phase 3): redacts `req.body`,
+    `authorization`, `cookie`, `set-cookie`, `x-app-passcode`,
+    `x-api-key` (`artifacts/api-server/src/lib/logger.ts`).
   - Server-side post-parse check that the model returned an object with all
     required keys (`coach.ts:333-345`).
 
@@ -92,7 +100,7 @@ each phase.
 | R4 | `max_completion_tokens: 8192` per call is ~10× the realistic ceiling for these schemas; sets unnecessarily high worst-case bill per request. | Medium | `coach.ts:308` | Cheap to fix; Phase 2. |
 | R5 | No request timeout on the OpenAI call. A hung upstream pins a Node worker; combined with R1 this enables a low-cost DoS / cost bleed. | Medium | `coach.ts:306-321` (no `timeout` on `OpenAI` instance, no `signal` on the call) | Phase 2. |
 | R6 | OpenAI client is constructed per request. Mostly a wastefulness issue, but it also means there's nowhere obvious to set a process-wide `timeout` or default headers. | Low | `coach.ts:253-263`, instantiated inside `runTool` at `coach.ts:300` | Phase 2. |
-| R7 | Frontend chip claims "Private · Not stored" but R2 contradicts it; there is also no `/privacy` page or DPA explaining what is sent to OpenAI / Replit AI proxy. | High (legal/trust) | `artifacts/wife-chat/src/components/RelationshipStudio.tsx:33-35`; no `privacy*` files in repo. | Phase 5. Must be honest before any external launch. |
+| R7 | Frontend chip claims "Private · Not stored" but R2 contradicts it; there is also no `/privacy` page or DPA explaining what is sent to OpenAI / Replit AI proxy. | ~~High (legal/trust)~~ **Resolved** | `artifacts/wife-chat/src/components/RelationshipStudio.tsx:37-42` (chip + modal trigger); `artifacts/wife-chat/src/components/PrivacyDialog.tsx` (in-app explainer). | **Resolved in Phase 5 (May 2026).** Chip rewritten to "Private by design · Not therapy"; added in-app privacy modal. Mobile copy tightened in parallel. |
 | R8 | No `X-Request-Id` is set on responses. `pino-http` assigns `req.id` for logs (`app.ts:15`) but it never reaches the client, so a user who hits an error has no token to give support. | Medium | `app.ts:9-27` (no `genReqId` config, no response header) | Phase 1. |
 | R9 | No global Express error handler. Uncaught errors fall through to Express's default HTML page in dev. | Medium | `app.ts:33` is the last `app.use`; no `(err, req, res, next)` handler registered. | Phase 1. |
 | R10 | `express.urlencoded({ extended: true })` is mounted but no current route uses it. Default 100 KB limit is also unset. | Low | `app.ts:31` — no `urlencoded` consumer in `routes/coach.ts` or `routes/health.ts`. | Phase 1, simple removal. |
@@ -795,10 +803,79 @@ pnpm --filter @workspace/wife-chat typecheck
 
 ---
 
-### Phase 5 — Frontend Trust + Privacy Copy
+### Phase 5 — Frontend Trust + Privacy Copy ✅ Shipped (May 2026)
 
 **Goal:** Make the privacy promise true (R7), and tell users what actually
-happens to their text. Add a `/privacy` page and adjust the header chip.
+happens to their text. Adjust the header chip and add an in-app privacy
+explainer (a modal, not a route — the web app has no router and we did
+not add one).
+
+**What changed:**
+- `artifacts/wife-chat/src/components/RelationshipStudio.tsx`: header
+  chip changed from `Private · Not stored · Not therapy` to
+  **`Private by design · Not therapy`**, paired with a new
+  **"How privacy works"** affordance.
+- `artifacts/wife-chat/src/components/PrivacyDialog.tsx` *(new)*: shadcn
+  `Dialog`-based modal with sections covering: what gets sent (API →
+  OpenAI), what WifeChat does not save (no cloud account/database in
+  this prototype), local storage (web doesn't persist; mobile keeps
+  drafts on device), metadata-only logs, AI provider note (cautious —
+  no retention promise), safety/crisis intercept behavior, "not therapy
+  / legal / medical / emergency support," US-default crisis resources
+  with a note for users outside the US.
+- No React Router added. `App.tsx` continues to render
+  `<RelationshipStudio />` directly.
+- Mobile copy tightened to distinguish "stored on this device" from
+  "sent to the WifeChat API and OpenAI when you ask the assistant":
+  - `artifacts/wife-chat-mobile/app/(tabs)/index.tsx` — privacy strip.
+  - `artifacts/wife-chat-mobile/app/(tabs)/saved.tsx` — footer no
+    longer says the unqualified "Nothing you write today is sent…".
+  - `artifacts/wife-chat-mobile/app/(tabs)/profile.tsx` — "What this
+    app is" card now explicitly names the API and AI provider, the
+    no-cloud-sync prototype scope, and the US-only default crisis
+    resources caveat.
+- Docs truth pass:
+  - `replit.md` corrects the route name from `/api/health` to
+    `/api/healthz` and adds a **User-facing privacy language**
+    section that mirrors what the UI now claims.
+  - This file's **Current Product Shape** section is reconciled with
+    the post-Phase-1–4 code: open CORS, `max_completion_tokens: 8192`,
+    "Replit AI proxy preferred by default," and the stale header chip
+    text are no longer described as current.
+
+**Verification (run on this machine):**
+- `pnpm --filter @workspace/wife-chat typecheck` → pass.
+- `pnpm --filter @workspace/wife-chat-mobile typecheck` → pass.
+- `pnpm --filter @workspace/api-server typecheck` → pass.
+- `rg -n "api/chat|chatRouter|routes/chat" artifacts/` → no live route.
+- `rg -n "Not stored|completely private|anonymous" artifacts/wife-chat artifacts/wife-chat-mobile`
+  → only historical references inside docs (none in user-facing UI).
+- Manual: web header reads "Private by design · Not therapy"; clicking
+  "How privacy works" opens the modal with the seven sections above;
+  the amber footer crisis disclaimer still renders; all four tools
+  still work.
+
+**Behavior changes visible to clients:**
+- The web header chip text changes. A new "How privacy works" link
+  appears next to it (visible at all viewport widths; the chip text
+  itself remains hidden on `< sm` to preserve the previous mobile
+  layout).
+- A new modal can be opened from the header. No new network calls,
+  no analytics, no cookies.
+- Mobile copy reads more precisely; the user is now told that
+  assistant requests leave the device.
+
+**Remaining deferred risks (not Phase 5 regressions):**
+- **R11** — In-memory rate limiter; durable rate limiting / quotas.
+  **Phase 7.**
+- **R16** — Locale-aware crisis hotlines. The privacy modal and mobile
+  Profile copy now explicitly tell users outside the US to use local
+  resources, but full locale routing is still deferred.
+- **R17** — Deeper schema value validation on model output. **Phase 6.**
+- **R18** — Automated tests. **Phase 6.**
+- Provider (OpenAI / Replit AI proxy) retention windows remain
+  **Unverified**; the modal uses cautious wording instead of claiming
+  a number.
 
 **Acceptance criteria:**
 - The header chip at `RelationshipStudio.tsx:33-35` no longer claims

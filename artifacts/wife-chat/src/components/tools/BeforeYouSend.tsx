@@ -47,7 +47,7 @@ export function BeforeYouSend() {
         />
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{message.length}/4000</span>
-          <span>Nothing is stored. Pasted text stays on your device.</span>
+          <span>Sent to the assistant to generate a response. Not saved to a WifeChat account.</span>
         </div>
       </div>
 

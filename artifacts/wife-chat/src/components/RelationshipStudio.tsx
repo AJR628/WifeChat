@@ -5,6 +5,7 @@ import { BeforeYouSend } from "@/components/tools/BeforeYouSend";
 import { FightRepair } from "@/components/tools/FightRepair";
 import { Planner } from "@/components/tools/Planner";
 import { CheckIn } from "@/components/tools/CheckIn";
+import { PrivacyDialog } from "@/components/PrivacyDialog";
 
 const TABS = [
   { value: "before-send", label: "Before You Send", short: "Send", icon: Send, desc: "Rewrite a message before you hit send." },
@@ -30,9 +31,12 @@ export function RelationshipStudio() {
               <p className="text-xs text-muted-foreground leading-tight">by WifeChat</p>
             </div>
           </div>
-          <span className="hidden text-xs text-muted-foreground sm:inline">
-            Private · Not stored · Not therapy
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              Private by design · Not therapy
+            </span>
+            <PrivacyDialog />
+          </div>
         </div>
       </header>
 

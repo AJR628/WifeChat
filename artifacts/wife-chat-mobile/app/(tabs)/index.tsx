@@ -211,9 +211,10 @@ export default function StudioScreen() {
             style={{ marginTop: 1 }}
           />
           <Text style={styles.privacyText}>
-            This is a communication tool, not therapy or emergency support. Your
-            drafts are stored on this device only. We never claim to know what
-            your partner thinks.
+            This is a communication tool, not therapy or emergency support.
+            Drafts are stored on this device. When you ask the assistant for
+            help, your text is sent to the WifeChat API and OpenAI to generate
+            a response. We never claim to know what your partner thinks.
           </Text>
         </View>
       </ScrollView>
