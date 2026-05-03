@@ -1,0 +1,185 @@
+You are working in the WifeChat repo.
+
+Goal:
+Implement Phase 3 — Privacy-Safe Logging from docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md, plus one small provider-selection correction so the app uses the user's own OPENAI_API_KEY by default instead of Replit's AI integration key.
+
+Important:
+- Audit first with exact file:line evidence.
+- Make no assumptions.
+- Implement only Phase 3 and the explicit OpenAI provider-selection correction described below.
+- Do not implement Phase 4 deterministic safety intercept.
+- Do not add auth, billing, database, Redis, Stripe, analytics, telemetry, or new product features.
+- Do not change mobile UI.
+- Do not change coach prompt behavior.
+- Do not reintroduce /api/chat.
+- Build this as if another agent/dev must understand and safely maintain it later.
+- Update documentation so the logging/privacy/provider behavior is clear.
+
+Context:
+WifeChat is a sensitive relationship communication app. Users may paste private relationship details, names, fights, trauma, or crisis language. Logs must be useful for debugging without storing relationship content.
+
+Phase 3 rule:
+Logs may include safe metadata only. Logs must never include:
+- raw user input
+- request body
+- generated relationship text
+- raw model output
+- parsed model output
+- full provider/OpenAI error objects
+- passcodes
+- API keys
+- partial API keys
+- cookies or auth headers
+
+Allowed metadata:
+- requestId
+- route/path
+- tool key
+- event name
+- status/provider status
+- error class/name
+- model
+- duration/timing if already available
+- rate-limit/kill-switch/safety event flags
+- missing required keys list, because keys are schema names and not content
+
+Before implementing, verify:
+1. Current logger redaction in artifacts/api-server/src/lib/logger.ts.
+2. Current global error handler in artifacts/api-server/src/app.ts.
+3. Current unsafe logs in artifacts/api-server/src/routes/coach.ts.
+4. Current OpenAI env precedence in coach.ts.
+5. Current docs in replit.md and docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md.
+6. Confirm /api/chat is still absent.
+
+Phase 3 implementation requirements:
+
+1. Logger redaction
+Update artifacts/api-server/src/lib/logger.ts so the redaction list includes at minimum:
+- req.body
+- req.headers.authorization
+- req.headers.cookie
+- req.headers["x-app-passcode"]
+- req.headers.x-app-passcode
+- req.headers["x-api-key"]
+- req.headers.x-api-key
+- res.headers["set-cookie"]
+
+Add a short code comment explaining that WifeChat must never log relationship message content.
+
+2. Safe logging helper
+Add a small helper if useful, for example:
+artifacts/api-server/src/lib/safeLog.ts
+
+It should provide safe metadata extraction from unknown errors without returning raw error objects, stacks, response bodies, request bodies, provider payloads, or prompts.
+
+Example output shape:
+{
+  errorName,
+  errorMessage,
+  status
+}
+
+Important:
+- errorMessage is allowed only if it is a generic error message from the Error object and not a provider payload/body.
+- If unsure, omit errorMessage.
+- Never include err.body, err.response, err.cause, err.stack, err.headers, raw, parsed, messages, prompt, or request body.
+
+3. coach.ts logging cleanup
+Replace unsafe logs in artifacts/api-server/src/routes/coach.ts:
+- Do not log raw model output when JSON.parse fails.
+- Do not log parsed model output when parsed result is not an object.
+- Do not log full provider/OpenAI error objects.
+- Keep safe event names:
+  - coach_model_non_json
+  - coach_model_invalid_shape
+  - coach_model_missing_required_fields
+  - coach_provider_error
+  - coach_missing_credentials
+  - coach_kill_switch
+
+Safe log fields should include:
+- event
+- tool
+- requestId if available
+- status if available
+- missing field names if applicable
+- errorName/errorStatus from safe helper if applicable
+
+Do not include user text or generated text.
+
+4. Global error handler cleanup
+In artifacts/api-server/src/app.ts:
+- Replace req.log.error({ err, status, requestId }, "Request failed") with metadata-only logging.
+- Do not log body-parser raw body.
+- Do not log full error object.
+- Keep response behavior unchanged:
+  - bad JSON returns 400 JSON with { error, requestId }
+  - uncaught errors return JSON with { error, requestId }
+
+5. OpenAI provider-selection correction
+The user has added their own OPENAI_API_KEY to secrets and does not want to use Replit's included AI integration by default.
+
+Change OpenAI credential selection so:
+- OPENAI_API_KEY is preferred by default.
+- If OPENAI_API_KEY is present, use official OpenAI default base URL. Do not combine it with AI_INTEGRATIONS_OPENAI_BASE_URL.
+- Replit AI integration env vars may only be used if an explicit env flag is set, suggested:
+  USE_REPLIT_OPENAI_PROXY=true
+- If USE_REPLIT_OPENAI_PROXY=true, then and only then may the app use:
+  AI_INTEGRATIONS_OPENAI_API_KEY
+  AI_INTEGRATIONS_OPENAI_BASE_URL
+- If OPENAI_API_KEY is missing and USE_REPLIT_OPENAI_PROXY is not true, return the existing clean 500:
+  { "error": "Server is not configured for the assistant." }
+- Do not log API keys, partial keys, key suffixes, or key fingerprints.
+- If the current singleton needs a rebuild fingerprint, use a non-secret provider mode string plus baseURL presence only, or an in-memory hash that is never logged. Prefer simplicity. Restart-on-key-rotation is acceptable and should be documented.
+
+6. Documentation
+Update replit.md:
+- Document that OPENAI_API_KEY is the default and preferred provider.
+- Document that Replit AI proxy is opt-in only via USE_REPLIT_OPENAI_PROXY=true.
+- Document Phase 3 logging rule: no relationship content, request bodies, model output, or provider payloads in logs.
+- Document safe fields allowed in logs.
+
+Update docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md:
+- Mark Phase 3 shipped only if all acceptance criteria are met.
+- Include what changed.
+- Include behavior changes visible to clients.
+- Include verification commands/results.
+- List remaining risks deferred to later phases:
+  R3 safety intercept
+  R7 privacy copy
+  R11 durable rate limiting/quotas
+  R13 prompt-injection framing
+  R16 locale crisis resources
+  R17 deeper schema value validation
+  R18 tests
+
+7. Verification required
+Run:
+- pnpm --filter @workspace/api-server typecheck
+- pnpm --filter @workspace/wife-chat-mobile typecheck
+- rg -n "api/chat|chatRouter|routes/chat" artifacts/ should show no live route
+- rg -n "req\\.log\\.(error|warn|info).*\\{\\s*(raw|parsed|err|body|message|messages|prompt)" artifacts/api-server/src should show no unsafe logging patterns. If the regex is imperfect, inspect manually and report findings.
+- rg -n "AI_INTEGRATIONS_OPENAI_API_KEY.*\\?\\?|\\?\\?.*OPENAI_API_KEY|AI_INTEGRATIONS_OPENAI_BASE_URL" artifacts/api-server/src/routes/coach.ts should confirm Replit proxy is not preferred by default.
+
+Manual canary log checks:
+A. Start API with LOG_LEVEL=debug and valid OPENAI_API_KEY.
+B. Send a normal coach request with a unique canary string in the message:
+   canary-string-do-not-log-<timestamp>
+C. Grep logs for the canary. Expect no matches.
+D. Send malformed JSON containing another unique canary string.
+E. Grep logs for that canary. Expect no matches.
+F. Temporarily start API without OPENAI_API_KEY and without USE_REPLIT_OPENAI_PROXY.
+G. Call /api/coach/before-send and confirm clean 500 response, process stays alive, logs do not include any user input.
+
+If a provider-error path cannot be safely forced without extra test harness work, document that and explain what code path was manually inspected.
+
+Deliver:
+1. Audit findings with file:line evidence.
+2. Explanation of OpenAI provider-selection change.
+3. Files changed.
+4. Commands run and results.
+5. Canary log verification results.
+6. Behavior changes visible to clients.
+7. Updated safety plan summary.
+8. Confirmation /api/chat was not reintroduced.
+9. Confirmation no raw relationship content is logged by known app code paths.
