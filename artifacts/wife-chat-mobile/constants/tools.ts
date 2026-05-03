@@ -19,6 +19,7 @@ export interface Tool {
   chips: string[];
   placeholder: string;
   empty: { title: string; sub: string };
+  comingSoon?: boolean;
 }
 
 export const TOOLS: Record<ToolKey, Tool> = {
@@ -78,6 +79,7 @@ export const TOOLS: Record<ToolKey, Tool> = {
       title: "Walk in calm.",
       sub: "Tell us the topic, your goal, and one fear. We will help you plan an opener you would actually say.",
     },
+    comingSoon: true,
   },
   checkin: {
     key: "checkin",
@@ -116,6 +118,7 @@ export const TOOLS: Record<ToolKey, Tool> = {
       title: "Rehearse, then talk.",
       sub: "Set the scene in a sentence. We will respond as a realistic stand-in — not a caricature.",
     },
+    comingSoon: true,
   },
 };
 

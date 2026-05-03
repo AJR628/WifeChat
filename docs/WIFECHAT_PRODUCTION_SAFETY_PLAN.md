@@ -105,22 +105,35 @@ each phase.
 | R17 | Schema's `required` check at `coach.ts:333-345` only verifies key presence, not that values are non-empty strings or that array fields meet `minItems`. A model returning `{ better: "" }` would render an empty card. | Low–Medium | `coach.ts:333-345` | Add minimal value-shape check; pair with Phase 2 or Phase 4. |
 | R18 | Zero automated tests exist anywhere in the repo. | Medium | Verified: `find artifacts -name "*.test.*" -o -name "*.spec.*"` returns no results. | Phase 6. |
 
-### Known active conflict with this plan (added by mobile UI work)
+### Resolved conflict — `/api/chat` removed (May 2026)
 
-- **`POST /api/chat` was resurrected** by the Expo mobile companion task
-  (see commit `d76fd06…` — Task #2). The mobile app at
-  `artifacts/wife-chat-mobile/lib/chat.ts:17` calls `/api/chat`, and the
-  endpoint exists again on the API server. This directly conflicts with
-  the Implementation Rule below: "no generic `/api/chat` route
-  resurrection." It is being left in place for now because the mobile
-  prototype depends on it, but it must be revisited:
-  - Either fold the mobile chat into the structured `/api/coach/*` endpoints
-    (preferred, matches the structured-output safety story), or
-  - Apply the same passcode + rate-limit + safety-intercept guardrails to
-    `/api/chat` as Phase 4 ships for `/api/coach/*`, and document why a
-    freeform endpoint is acceptable for the mobile companion.
-  Until then, treat `/api/chat` as a known unmitigated surface and do not
-  expand its callers beyond the mobile app.
+- **`POST /api/chat` is gone again.** The previous resurrection by the
+  Expo mobile companion task has been reverted in favor of routing the
+  three mobile coach screens that fit a single-text input shape through
+  the existing bounded `/api/coach/*` endpoints. Verification:
+  - `artifacts/api-server/src/routes/index.ts:1-9` mounts only
+    `healthRouter` and `coachRouter`; the `chatRouter` import is gone.
+  - `artifacts/api-server/src/routes/chat.ts` no longer exists.
+  - `artifacts/wife-chat-mobile/lib/chat.ts` no longer exists; the mobile
+    app now uses `artifacts/wife-chat-mobile/lib/coach.ts` which posts
+    to `/api/coach/{before-send,repair,checkin}` and formats the
+    structured JSON response into a readable text bubble for display in
+    the existing chat UI shell.
+  - Per-tool local history (`AsyncStorage`,
+    `artifacts/wife-chat-mobile/lib/storage.ts`) is preserved.
+- **Remaining gap (documented, not a `/api/chat` regression):** the
+  Plan a Hard Conversation tool (`planner`) and Practice Conversation
+  tool (`practice`) on mobile are now flagged `comingSoon: true` in
+  `artifacts/wife-chat-mobile/constants/tools.ts` and their input is
+  disabled. Reason: the chat-shell UI on mobile collects a single text
+  blob, while `/api/coach/planner` requires `topic`, `goal`, and
+  `desiredOutcome` as separate fields, and there is no
+  `/api/coach/session` route for free-form practice (intentionally — it
+  would be a generic-chat escape hatch). To re-enable them either: (a)
+  ship a structured form UI on mobile equivalent to the web tool, or
+  (b) ship a bounded `/api/coach/session` route with the same
+  passcode + rate-limit + Phase 4 safety-intercept + Phase 3 logging
+  guardrails. Neither is in scope for this fix.
 - The mobile UI restructure (Studio / Saved / Rituals / Profile tabs +
   guided coach screens) is **UI-only** and adds no new server surface,
   no auth, no cloud persistence, and no new dependencies. Drafts and
@@ -133,11 +146,16 @@ each phase.
 
 ### Items from earlier audit that are **already fixed** or were overstated
 
-- **Legacy `/api/chat` route is gone.** Earlier audits flagged this as a
-  cost-abuse vector. Verified absent: `artifacts/api-server/src/routes/index.ts`
-  contains only `healthRouter` and `coachRouter` (lines 2-3, 7-8) and there is
-  no `routes/chat.ts` file. Treat any future PR re-introducing `/api/chat` as
-  an immediate revert.
+- **Legacy `/api/chat` route is gone (re-verified May 2026).** Earlier
+  audits flagged this as a cost-abuse vector; it was briefly resurrected
+  by the mobile companion task and has now been removed again. Verified
+  absent: `artifacts/api-server/src/routes/index.ts` contains only
+  `healthRouter` and `coachRouter` (lines 1-2, 6-7) and there is no
+  `routes/chat.ts` file. The mobile client at
+  `artifacts/wife-chat-mobile/lib/coach.ts` only calls
+  `/api/coach/{before-send,repair,checkin}`. Treat any future PR
+  re-introducing `/api/chat`, or adding a free-form `/api/coach/session`
+  route without Phase 3 + Phase 4 guardrails, as an immediate revert.
 - **Server-side schema validation now exists.** Previously flagged as missing;
   now present at `coach.ts:333-345`. Still incomplete (R17) but the structural
   check is real.

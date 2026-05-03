@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { TOOLS, isToolKey, type ToolKey } from "@/constants/tools";
 import { useColors } from "@/hooks/useColors";
-import { sendChat, ChatError } from "@/lib/chat";
+import { sendCoach, isSupportedCoachTool, CoachError } from "@/lib/coach";
 import {
   clearMessages,
   loadMessages,
@@ -68,11 +68,13 @@ export default function CoachScreen() {
     }
   }, [toolKey, messages, hydrated]);
 
-  const canSend = input.trim().length > 0 && !sending;
+  const isComingSoon = !!tool.comingSoon;
+  const canSend = input.trim().length > 0 && !sending && !isComingSoon;
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    if (!text || sending) return;
+    if (!text || sending || isComingSoon) return;
+    if (!isSupportedCoachTool(toolKey)) return;
 
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -90,7 +92,7 @@ export default function CoachScreen() {
     setSending(true);
 
     try {
-      const replyText = await sendChat(next);
+      const replyText = await sendCoach(toolKey, text);
       const reply: Message = {
         id: newMessageId(),
         role: "assistant",
@@ -100,14 +102,14 @@ export default function CoachScreen() {
       setMessages((prev) => [...prev, reply]);
     } catch (err) {
       const message =
-        err instanceof ChatError ? err.message : "Something went wrong. Please try again.";
+        err instanceof CoachError ? err.message : "Something went wrong. Please try again.";
       Alert.alert("Couldn't send", message);
       setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
       setInput(text);
     } finally {
       setSending(false);
     }
-  }, [input, sending]);
+  }, [input, sending, isComingSoon, toolKey]);
 
   const handleClear = useCallback(() => {
     if (messagesRef.current.length === 0) return;
@@ -470,10 +472,14 @@ export default function CoachScreen() {
               style={styles.inputField}
               value={input}
               onChangeText={setInput}
-              placeholder={tool.placeholder}
+              placeholder={
+                isComingSoon
+                  ? "Guided form coming soon — try Before You Send, Repair, or Daily Check-In."
+                  : tool.placeholder
+              }
               placeholderTextColor={colors.mutedForeground}
               multiline
-              editable={!sending}
+              editable={!sending && !isComingSoon}
               testID="chat-input"
             />
             <Pressable
