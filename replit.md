@@ -47,6 +47,13 @@ Key files:
 - `src/components/ResultCard.tsx` — shared copy-able output card
 - `src/lib/coach.ts` — typed client for `/api/coach/*`
 
+### `artifacts/wife-chat-mobile` — Expo mobile app
+
+Expo Router app for the mobile WifeChat experience. Native iOS output is not
+committed today; generate it locally only when native work is explicitly in
+scope. The iOS keyboard extension architecture and prebuild policy live in
+`docs/IOS_KEYBOARD_EXTENSION_PLAN.md`.
+
 ### `artifacts/api-server` — Express API
 
 Endpoints under `/api/coach/*` call OpenAI with strict JSON-schema response
