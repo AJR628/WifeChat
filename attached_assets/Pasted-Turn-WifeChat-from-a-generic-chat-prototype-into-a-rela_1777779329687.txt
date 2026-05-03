@@ -1,0 +1,73 @@
+Turn WifeChat from a generic chat prototype into a relationship communication tool.
+
+Current state:
+- Next.js app
+- app/page.tsx is blank
+- app/api/chat/route.ts calls OpenAI with a generic assistant prompt
+- This is a prototype, not production
+
+Product direction:
+WifeChat should not be a generic chatbot. It should be a relationship communication studio focused on helping users say hard things better, repair conflict, and build relationship rituals.
+
+Build a single-page prototype called Relationship Studio.
+
+Core tools:
+1. Before You Send
+- User pastes a raw message.
+- App returns:
+  - better version
+  - softer version
+  - direct version
+  - short text version
+  - how it might land
+  - the real need underneath
+  - one thing to avoid saying
+
+2. Fight Repair
+- User describes a fight.
+- App returns:
+  - neutral summary
+  - what each side may have felt
+  - where it derailed
+  - repair message
+  - one question to ask later
+  - next best action
+
+3. Hard Conversation Planner
+- User enters topic, goal, fear, and desired outcome.
+- App returns:
+  - opener
+  - 3 key points
+  - likely sensitive spots
+  - calm responses
+  - closing request
+
+4. Daily Check-In
+- User answers a few prompts.
+- App returns:
+  - private reflection
+  - optional partner message
+  - one tiny connection action
+
+UI requirements:
+- Replace blank page with a polished mobile-friendly dashboard.
+- Do not make it look like a generic chatbot.
+- Use cards, tabs, structured forms, and structured outputs.
+- Add copy buttons where simple.
+- Add loading/error/empty states.
+- Include example placeholder text.
+- No auth, database, billing, or new external dependencies unless absolutely necessary.
+
+API requirements:
+- Update the system prompt so the assistant behaves like a relationship communication coach.
+- Keep responses practical, concise, emotionally mature, and non-judgmental.
+- Do not claim to know what the partner thinks.
+- Do not encourage manipulation, control, surveillance, guilt-tripping, or emotional abuse.
+- Include a gentle disclaimer that this is not therapy or emergency support when relevant.
+- Prefer structured outputs with clear headings.
+
+Deliver:
+1. Working prototype
+2. Summary of changed files
+3. How to run/test
+4. Next 10 product features that could make WifeChat sticky
