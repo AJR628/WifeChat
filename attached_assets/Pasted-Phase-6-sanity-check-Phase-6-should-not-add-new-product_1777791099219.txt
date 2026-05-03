@@ -1,0 +1,242 @@
+Phase 6 sanity check
+
+Phase 6 should not add new product features. It should lock down everything you just built.
+
+The purpose is:
+
+Make future agents unable to accidentally break CORS, privacy-safe logging, /api/chat removal, kill switch, provider selection, safety intercepts, and schema-shaped responses without tests failing.
+
+Right now api-server has no test script in package.json; it only has dev, build, start, and typecheck . The safety plan also still identifies zero automated tests as the current R18 gap . So Phase 6 should focus mostly on the backend test harness first.
+
+Recommended Phase 6 scope
+Must include
+Backend test runner
+Prefer Node’s built-in node:test if feasible.
+Use Vitest only if Replit verifies it fits the workspace cleanly.
+Add pnpm --filter @workspace/api-server test.
+Pure unit tests
+These are easiest and high value:
+detectSafetyTripwire
+buildSafetyResult
+safeErrorMeta
+maybe rateLimit if exports make it reasonable
+
+API integration tests
+Use the Express app directly if possible, without opening a real network port.
+
+Test:
+
+/api/healthz returns ok
+X-Request-Id exists
+invalid JSON returns JSON, not HTML
+CORS allowed origin
+CORS blocked origin
+COACH_API_DISABLED=true returns 503
+missing OpenAI key returns clean 500
+safety intercept returns 200 schema-shaped result and does not call OpenAI
+/api/chat is absent / 404
+
+Provider-selection tests
+Important because you intentionally want your own OPENAI_API_KEY.
+
+Test:
+
+default provider uses OPENAI_API_KEY
+Replit proxy is ignored unless USE_REPLIT_OPENAI_PROXY=true
+with proxy flag true, Replit vars are used
+missing selected key returns clean configured error
+Logging regression tests
+Minimum:
+safeErrorMeta never exposes message/body/stack/headers/response.
+Static grep command remains in docs or test script.
+Ideally test a fake error with message, body, response, headers, and assert only errorName/status comes back.
+Should probably defer
+
+Do not build these in Phase 6:
+
+real auth
+persistent quota store
+Stripe
+saved cloud history
+mobile UI features
+couple mode
+a full E2E browser suite
+Playwright unless already installed and simple
+OpenAI live-call tests
+
+Live OpenAI tests are expensive/flaky. Mock or force pre-OpenAI branches.
+
+One docs issue to include
+
+The safety plan is better, but the top risk table still contains stale “current risk” descriptions for R1/R2/R3/R4/etc. even though the later phase sections say those are shipped/fixed . Phase 6 should include a small docs cleanup so future agents do not misread the old risk table again.
+
+Do not rewrite the whole doc. Just add a clear status column or move fixed items to “Resolved Risks.”
+
+Replit prompt for Phase 6
+You are working in the WifeChat repo.
+
+Goal:
+Sanity-check and implement Phase 6 — Test Harness + Regression Tests from docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md.
+
+Important:
+- Audit first with exact file:line evidence.
+- Make no assumptions.
+- Prove current behavior before writing tests for it.
+- Implement only Phase 6.
+- Do not add product features.
+- Do not change mobile UI.
+- Do not change web UI except if a test setup requires tiny non-behavioral test IDs, and only after proving necessity.
+- Do not change coach prompt behavior.
+- Do not change safety tripwire behavior unless a test exposes a real bug, and then stop/report before fixing.
+- Do not add auth, billing, database, Redis, Stripe, analytics, telemetry, or saved cloud history.
+- Do not reintroduce /api/chat.
+- Do not add /api/coach/session.
+- Do not make live OpenAI calls in automated tests.
+- Tests must be deterministic, offline, and safe for CI.
+
+Context:
+Phases 1–5 are shipped:
+- Phase 1: CORS allowlist, request IDs, JSON error handler, helmet.
+- Phase 2: MAX_COMPLETION_TOKENS=1500, OpenAI timeout, COACH_API_DISABLED kill switch.
+- Phase 3: privacy-safe metadata-only logging, safeLog helper, OPENAI_API_KEY default, Replit proxy opt-in only.
+- Phase 4: deterministic safety tripwire before OpenAI, static schema-shaped safety responses, untrusted-input framing.
+- Phase 5: truthful privacy/trust copy in web + mobile, docs truth pass.
+
+Before implementation, audit and report exact file:line evidence for:
+1. Current Phase 6 requirements in docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md.
+2. Current scripts in artifacts/api-server/package.json.
+3. Whether any test runner is already installed anywhere in the workspace.
+4. Current app export in artifacts/api-server/src/app.ts.
+5. Current server entry in artifacts/api-server/src/index.ts.
+6. Current route surface in artifacts/api-server/src/routes/index.ts and health route in routes/health.ts.
+7. Current safety helper in artifacts/api-server/src/lib/safety.ts.
+8. Current safe logging helper in artifacts/api-server/src/lib/safeLog.ts.
+9. Current provider-selection code in artifacts/api-server/src/routes/coach.ts.
+10. Current docs in replit.md and docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md for stale status/risk wording.
+
+Implementation requirements:
+
+1. Add backend test harness
+- Add a test script to artifacts/api-server/package.json:
+  "test": "<chosen deterministic test command>"
+- Prefer Node's built-in node:test if feasible with TypeScript/build output.
+- If using Vitest, first verify the workspace pattern and install only the minimal dev dependency needed.
+- Do not add Jest unless there is strong evidence it already fits this repo.
+- Tests must not call OpenAI.
+
+2. Make app testable without starting the real server
+- Prefer importing artifacts/api-server/src/app.ts directly.
+- Do not require a real PORT for tests.
+- If tests need a listener, create an ephemeral server inside the test and close it.
+- Do not modify production server behavior.
+
+3. Unit tests
+Add tests for:
+A. detectSafetyTripwire
+- should trip:
+  - "I want to hurt myself"
+  - "he hit me last night"
+  - "he threatened to kill me"
+  - "forced me sexually"
+  - "tracks my phone"
+  - "I am afraid to go home"
+- should NOT trip:
+  - "we had a fight"
+  - "I am angry"
+  - "I hate this"
+  - "I am hurt by what he said"
+- assert category where clear.
+
+B. buildSafetyResult
+- for before-send, repair, planner, checkin
+- assert all required schema fields exist
+- planner keyPoints has exactly 3
+- calmResponses contains objects with ifTheySay and youCanSay
+- no empty strings
+
+C. safeErrorMeta
+- fake error with name/status/message/body/response/headers/stack
+- assert result contains only errorName and status
+- assert message/body/response/headers/stack are not present
+
+4. API integration tests
+Add deterministic tests that do not call OpenAI:
+A. GET /api/healthz returns ok.
+B. Request has X-Request-Id.
+C. Invalid JSON returns application/json and { error, requestId }.
+D. CORS allowed origin returns Access-Control-Allow-Origin.
+E. CORS blocked origin does not return Access-Control-Allow-Origin.
+F. COACH_API_DISABLED=true returns 503 for /api/coach/before-send before OpenAI.
+G. Missing OPENAI_API_KEY with USE_REPLIT_OPENAI_PROXY unset returns clean 500 and process/app does not crash.
+H. Safety intercept returns HTTP 200, schema-shaped result, safety.intercepted=true, and does not call OpenAI.
+I. POST /api/chat returns 404 or is absent.
+
+For H, use a safety phrase so the request returns before OpenAI.
+
+5. Provider-selection regression test
+If provider selection can be tested cleanly without exposing secrets:
+- verify OPENAI_API_KEY is default
+- verify Replit proxy is only used when USE_REPLIT_OPENAI_PROXY=true
+If private functions are not exported, do not over-refactor. Either:
+- export a tiny test-safe helper with clear comment, or
+- cover behavior via missing-credential route tests.
+Do not log or snapshot any real keys.
+
+6. Logging regression
+At minimum:
+- test safeErrorMeta as above.
+- keep grep verification in final report:
+  rg -n 'req\.log\.(error|warn|info).*\{\s*(raw|parsed|err|body|message|messages|prompt)' artifacts/api-server/src
+Expected: no unsafe patterns.
+Do not build complex log-capture infrastructure unless simple.
+
+7. Docs cleanup
+Update docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md:
+- Mark Phase 6 shipped only after tests pass.
+- Add test command(s).
+- Add exact test coverage list.
+- Clean up stale risk-table confusion:
+  - fixed risks should not read as currently unresolved without a status note.
+  - add a "Resolved by Phase X" note or status column if minimal.
+- Preserve remaining deferred risks:
+  R11 durable rate limiting/quotas
+  R16 locale-aware crisis resources
+  R17 deeper schema value validation if not addressed
+  any auth/billing/saved-history items intentionally deferred.
+
+Update replit.md:
+- Add test command.
+- Explain tests are deterministic and do not call OpenAI.
+- Correct any stale route docs, especially /api/healthz vs /api/health.
+
+8. Verification commands
+Run:
+pnpm --filter @workspace/api-server typecheck
+pnpm --filter @workspace/api-server test
+pnpm --filter @workspace/wife-chat typecheck
+pnpm --filter @workspace/wife-chat-mobile typecheck
+
+Run:
+rg -n "api/chat|chatRouter|routes/chat" artifacts/
+Expected: no live route.
+
+Run:
+rg -n 'req\.log\.(error|warn|info).*\{\s*(raw|parsed|err|body|message|messages|prompt)' artifacts/api-server/src
+Expected: no unsafe patterns.
+
+Run:
+rg -n "Not stored|not stored|completely private|anonymous|confidential" artifacts/wife-chat artifacts/wife-chat-mobile docs replit.md
+Manually inspect hits and explain any remaining acceptable ones.
+
+9. Final report
+Include:
+1. Audit findings with file:line evidence.
+2. Chosen test runner and why.
+3. Files changed.
+4. Exact tests added.
+5. Commands run and results.
+6. Confirmation no OpenAI calls occur in tests.
+7. Confirmation /api/chat was not reintroduced.
+8. Confirmation privacy/safety logging rules did not regress.
+9. Docs updates made.
+10. Remaining deferred risks.
