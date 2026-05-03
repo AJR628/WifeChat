@@ -5,6 +5,7 @@ import pinoHttp from "pino-http";
 import { randomUUID } from "node:crypto";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { safeErrorMeta } from "./lib/safeLog";
 
 const app: Express = express();
 
@@ -83,7 +84,14 @@ app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     ?? (err as { statusCode?: number })?.statusCode
     ?? (err instanceof SyntaxError ? 400 : 500);
   const message = status === 400 ? "Invalid request body." : "Internal server error.";
-  req.log?.error({ err, status, requestId }, "Request failed");
+  // Phase 3: log metadata only. body-parser errors carry the raw payload on
+  // `err.body`; never log the full error object — it would echo whatever the
+  // client sent (potentially relationship content) into our logs.
+  const meta = safeErrorMeta(err);
+  req.log?.error(
+    { event: "request_failed", status, requestId, ...meta },
+    "Request failed",
+  );
   if (res.headersSent) return;
   res.status(status).type("application/json").json({ error: message, requestId });
 });

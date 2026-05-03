@@ -441,10 +441,125 @@ pnpm --filter @workspace/api-server typecheck
 
 ---
 
-### Phase 3 — Privacy-Safe Logging
+### Phase 3 — Privacy-Safe Logging ✅ Shipped (May 2026)
 
 **Goal:** Stop writing relationship content to logs (R2). Make logs useful
 for debugging without leaking the thing the product exists to protect.
+
+**What changed:**
+- `artifacts/api-server/src/lib/logger.ts`: pino `redact` expanded to
+  `req.body`, `req.headers.authorization`, `req.headers.cookie`,
+  `req.headers["x-app-passcode"]`, `req.headers["x-api-key"]`,
+  `res.headers["set-cookie"]`. Added a code-level comment naming the
+  WifeChat privacy rule so the next agent does not silently re-introduce
+  raw content logging.
+- New `artifacts/api-server/src/lib/safeLog.ts` exports
+  `safeErrorMeta(err)`. Returns only `errorName` and (optionally)
+  numeric `status`. Deliberately does **not** return `err.message` —
+  the OpenAI SDK packs upstream response bodies into `message` as
+  plain text, and a heuristic filter is not strong enough to keep that
+  out of logs. Never returns `err.body`, `err.response`, `err.cause`,
+  `err.stack`, `err.headers`, `err.message`, prompts, or request bodies.
+- `artifacts/api-server/src/routes/coach.ts`: replaced the four unsafe
+  `req.log.error(...)` calls.
+  - `{ raw }` (non-JSON model output) → `{ event:
+    "coach_model_non_json", tool, requestId }`.
+  - `{ parsed }` (model output not an object) → `{ event:
+    "coach_model_invalid_shape", tool, requestId }`.
+  - `{ missing }` (missing required fields) → `{ event:
+    "coach_model_missing_required_fields", tool, requestId, missing }`
+    — `missing` is a list of schema field names, not user content.
+  - `{ err, status }` (OpenAI error) → `{ event:
+    "coach_provider_error", tool, requestId, errorName, errorStatus }`
+    via `safeErrorMeta`.
+  - `getOpenAI()` missing-credentials log is now `{ event:
+    "coach_missing_credentials" }` — no key names, no fingerprints,
+    no partial keys.
+- `artifacts/api-server/src/app.ts`: global error handler no longer
+  logs the full `err` (which for body-parser carries the raw request
+  body). Now logs `{ event: "request_failed", status, requestId,
+  errorName, [errorMessage], [status] }` via `safeErrorMeta`. Response
+  contract `{ error, requestId }` is unchanged.
+
+**Provider-selection correction (paired with Phase 3, not Phase 4):**
+- `coach.ts:getOpenAI` previously preferred Replit's AI Integrations
+  proxy (`AI_INTEGRATIONS_OPENAI_API_KEY`) over the user's own
+  `OPENAI_API_KEY`, and combined `OPENAI_API_KEY` with
+  `AI_INTEGRATIONS_OPENAI_BASE_URL` whenever both were present.
+- Now: `OPENAI_API_KEY` is the **default**, against the official
+  OpenAI base URL (no custom `baseURL`). Replit's proxy is **opt-in**
+  via `USE_REPLIT_OPENAI_PROXY=true`, and only then are the
+  `AI_INTEGRATIONS_*` env vars consulted. If the selected provider's
+  key is missing, the existing clean
+  `500 { "error": "Server is not configured for the assistant." }`
+  contract is preserved and the process stays alive.
+- The previous "fingerprint" cache key included the last 4 chars of
+  the API key. It is now a non-secret `mode` string
+  (`openai|replit-proxy` + base-URL presence). Rotating the underlying
+  API key requires a process restart. Documented in `replit.md` and
+  in code.
+
+**Verification (run on this machine):**
+- `pnpm --filter @workspace/api-server typecheck` → pass.
+- `pnpm --filter @workspace/wife-chat-mobile typecheck` → pass.
+- `rg -n "api/chat|chatRouter|routes/chat" artifacts/` → no matches.
+- `rg -n 'req\.log\.(error|warn|info).*\{\s*(raw|parsed|err|body|message|messages|prompt)' artifacts/api-server/src` → no matches.
+- `rg -n "AI_INTEGRATIONS_OPENAI_API_KEY.*\?\?|\?\?.*OPENAI_API_KEY|AI_INTEGRATIONS_OPENAI_BASE_URL" artifacts/api-server/src/routes/coach.ts` → only matches are doc comments and the inside of the `USE_REPLIT_OPENAI_PROXY=true` branch; no `??` precedence preferring the proxy over the user key.
+- **Canary A** — normal coach call carrying `canary-aaa-<ts>` in the
+  message body: `200` with full schema payload; `grep -F` for the
+  canary against the full API workflow log → 0 matches.
+- **Canary B** — malformed JSON body `{not json canary-bbb-<ts>`:
+  `400 { "error": "Invalid request body.", "requestId": "..." }`; new
+  global error handler logs `{ event: "request_failed", status: 400,
+  requestId, errorName: "SyntaxError" }`; `grep -F` for the canary
+  against the API workflow log → 0 matches.
+- **Canary C** — server started with `OPENAI_API_KEY`,
+  `USE_REPLIT_OPENAI_PROXY`, `AI_INTEGRATIONS_OPENAI_API_KEY`, and
+  `AI_INTEGRATIONS_OPENAI_BASE_URL` all unset. Two POSTs to
+  `/api/coach/before-send` carrying `canary-ccc-<ts>` in the body:
+  both returned `500 { "error": "Server is not configured for the
+  assistant." }`, process stayed alive across both calls. Logs show
+  `{ event: "coach_missing_credentials" }` only; `grep -F` for the
+  canary → 0 matches.
+- **Provider-error path** was not exercised in this verification (no
+  test harness to stub OpenAI). Manually inspected: `runTool`'s
+  `catch (err)` calls `safeErrorMeta(err)` and logs only `event`,
+  `tool`, `requestId`, `errorName`, `errorStatus`. The OpenAI SDK
+  attaches the response body to `err.body` / `err.response`; neither
+  is read by `safeErrorMeta`. The 429 → 503 / else 502 response
+  branches are unchanged.
+
+**Behavior changes visible to clients:**
+- Successful coach responses are unchanged in shape and content.
+- 4xx/5xx response envelopes (`{ error, requestId }`) are unchanged.
+- A user who sets only `OPENAI_API_KEY` will now hit OpenAI directly;
+  previously, if Replit had also injected `AI_INTEGRATIONS_OPENAI_*`
+  vars, the request would have silently routed through Replit's
+  proxy. Operators who relied on the proxy must now set
+  `USE_REPLIT_OPENAI_PROXY=true` explicitly.
+- Logs are now metadata-only. Operators who relied on grepping logs
+  for user content to debug a complaint must reproduce the request
+  with the user's `X-Request-Id` instead.
+
+**Residual / known gaps:**
+- pino-http's built-in response-error serializer emits an `err` field
+  with a stack on `request errored` log lines (e.g. `Error: failed
+  with status code 500`). This stack contains framework internals
+  only — no user input, no model output, no provider payload — so it
+  does not violate the Phase 3 rule. If we ever want to suppress it
+  entirely, we can pass a custom `serializers.err` to `pinoHttp`. Not
+  doing so in this phase to keep the change scope small.
+
+**Remaining risks (intentionally deferred to later phases):**
+- R3 — deterministic safety intercept. **Phase 4.**
+- R7 — frontend "Not stored" privacy copy. **Phase 5.**
+- R11 — durable rate-limiting / quotas. **Phase 7.**
+- R13 — prompt-injection framing around interpolated user input.
+  **Phase 4 (paired).**
+- R16 — locale-aware crisis hotlines. **Phase 5.**
+- R17 — deeper schema value validation (non-empty strings, array
+  `minItems`). **Phase 4 or 6.**
+- R18 — automated tests. **Phase 6.**
 
 **Acceptance criteria:**
 - No log line contains: raw request body, raw model output text, parsed

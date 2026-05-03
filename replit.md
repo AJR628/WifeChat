@@ -50,10 +50,21 @@ claims, crisis resources for safety language). Per-IP in-memory rate limiting
 lives in `src/lib/rateLimit.ts` (20 req/min/IP). Optional gating via
 `APP_PASSCODE` env var.
 
-OpenAI credentials: prefers Replit AI Integrations
-(`AI_INTEGRATIONS_OPENAI_BASE_URL` + `AI_INTEGRATIONS_OPENAI_API_KEY`,
-auto-provisioned), falls back to user-supplied `OPENAI_API_KEY`. Model:
-`gpt-5-mini` (uses `max_completion_tokens`, no `temperature`).
+OpenAI credentials (Phase 3 correction):
+- **Default:** user-supplied `OPENAI_API_KEY` against the official OpenAI
+  base URL. No custom `baseURL` is ever combined with `OPENAI_API_KEY`.
+- **Opt-in only:** set `USE_REPLIT_OPENAI_PROXY=true` to route through
+  Replit's AI Integrations proxy. Only when this flag is `"true"` will
+  the server read `AI_INTEGRATIONS_OPENAI_API_KEY` and
+  `AI_INTEGRATIONS_OPENAI_BASE_URL`. This is intentionally not the
+  default so the user is not silently billed Replit credits when they
+  have their own key configured.
+- If the selected provider's key is missing, the server returns
+  `500 { "error": "Server is not configured for the assistant." }` and
+  stays alive. The OpenAI client is a lazy singleton; rotating the API
+  key requires a process restart.
+
+Model: `gpt-5-mini` (uses `max_completion_tokens`, no `temperature`).
 
 The legacy `POST /api/chat` endpoint has been removed; only `/api/health`
 and `/api/coach/*` are mounted.
@@ -74,6 +85,40 @@ and `/api/coach/*` are mounted.
 - **Helmet**: default headers enabled (no custom CSP).
 - **Body parsing**: only `express.json({ limit: "64kb" })`. The unused
   `express.urlencoded(...)` middleware was removed.
+
+#### Privacy-safe logging (Phase 3)
+
+WifeChat logs must never contain raw relationship content. Specifically,
+no log line — at any level — may include the request body, raw model
+output, parsed model output, full provider/OpenAI error objects,
+passcodes, API keys (full or partial), or auth/cookie headers.
+
+- **Allowed metadata fields:** `requestId`, `route`/`url`, `tool`,
+  `event`, `status`/`errorStatus`, `errorName`, `model`, timing if
+  already present, rate-limit / kill-switch / safety event flags, and
+  schema field names (e.g. the `missing` list for missing required
+  fields — these are schema names, not user content).
+- **Pino redact list** (`artifacts/api-server/src/lib/logger.ts`):
+  `req.body`, `req.headers.authorization`, `req.headers.cookie`,
+  `req.headers["x-app-passcode"]`, `req.headers["x-api-key"]`,
+  `res.headers["set-cookie"]`.
+- **Safe error helper** (`artifacts/api-server/src/lib/safeLog.ts`):
+  `safeErrorMeta(err)` extracts only `errorName` and optional numeric
+  `status`. It deliberately does **not** return `err.message`, because
+  the OpenAI SDK and other providers pack the upstream response body
+  (which can echo the user's prompt or the model's output) into the
+  `message` field as plain text — a heuristic filter is not strong
+  enough. Operators correlate logs by `X-Request-Id` and reproduce,
+  rather than grep error bodies. Never returns `err.body`,
+  `err.response`, `err.cause`, `err.stack`, `err.headers`, prompts, or
+  any provider payload.
+- **Coach event names** that route handlers emit (no content payload):
+  `coach_kill_switch`, `coach_missing_credentials`,
+  `coach_model_non_json`, `coach_model_invalid_shape`,
+  `coach_model_missing_required_fields`, `coach_provider_error`.
+- **Global error handler** logs only `{ event, status, requestId,
+  errorName }` — never the full `err` object, so body-parser's raw
+  payload is not echoed back into logs.
 
 #### Coach cost / timeout / kill switch (Phase 2)
 

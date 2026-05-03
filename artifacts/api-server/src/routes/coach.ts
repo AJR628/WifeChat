@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import OpenAI from "openai";
 import { checkRateLimit, clientKey } from "../lib/rateLimit";
+import { safeErrorMeta } from "../lib/safeLog";
 
 const router = Router();
 
@@ -278,28 +279,56 @@ Return JSON for the DailyCheckIn schema. Keep partnerMessage natural enough to a
 // credential read so the server does not crash at import time if env vars
 // are missing. Reused across requests so the SDK can pool connections and
 // so we have one place to enforce the request timeout.
+//
+// Provider selection (Phase 3 correction):
+//   - Default: user-supplied OPENAI_API_KEY hitting the official OpenAI API
+//     (no custom base URL).
+//   - Opt-in only: USE_REPLIT_OPENAI_PROXY=true switches to Replit's AI
+//     Integrations proxy (AI_INTEGRATIONS_OPENAI_API_KEY +
+//     AI_INTEGRATIONS_OPENAI_BASE_URL). This is intentionally not the
+//     default — it would silently bill Replit credits when the user has
+//     their own key configured.
+//   - We never combine OPENAI_API_KEY with AI_INTEGRATIONS_OPENAI_BASE_URL.
+//
+// The singleton is keyed by a non-secret "mode" string (provider + presence
+// of a base URL only). Rotating the underlying API key requires a process
+// restart; this is acceptable for the prototype and is documented.
+type ProviderMode = "openai" | "replit-proxy";
+
 let openaiSingleton: OpenAI | null = null;
-let openaiSingletonKeyFingerprint: string | null = null;
+let openaiSingletonMode: string | null = null;
+
+function selectCredentials(): { mode: ProviderMode; apiKey: string; baseURL?: string } | null {
+  const useReplitProxy = process.env["USE_REPLIT_OPENAI_PROXY"] === "true";
+  if (useReplitProxy) {
+    const apiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
+    const baseURL = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"];
+    if (!apiKey) return null;
+    return { mode: "replit-proxy", apiKey, ...(baseURL ? { baseURL } : {}) };
+  }
+  const apiKey = process.env["OPENAI_API_KEY"];
+  if (!apiKey) return null;
+  return { mode: "openai", apiKey };
+}
 
 function getOpenAI(req: Request, res: Response): OpenAI | null {
-  const baseURL = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"];
-  const apiKey =
-    process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
-  if (!apiKey) {
-    req.log.error("OpenAI credentials are not configured");
+  const creds = selectCredentials();
+  if (!creds) {
+    // Phase 3: log only the event name. Do not log key names, partial keys,
+    // or fingerprints.
+    req.log.error({ event: "coach_missing_credentials" }, "OpenAI credentials are not configured");
     res.status(500).json({ error: "Server is not configured for the assistant." });
     return null;
   }
-  // Rebuild the singleton if the credential identity changes (e.g. env reload
-  // in dev). Fingerprint is base+key length, no secret value is logged.
-  const fingerprint = `${baseURL ?? ""}:${apiKey.length}:${apiKey.slice(-4)}`;
-  if (!openaiSingleton || openaiSingletonKeyFingerprint !== fingerprint) {
+  // Singleton key is non-secret: provider mode + whether a base URL was set.
+  const modeKey = `${creds.mode}:${creds.baseURL ? "with-base" : "default-base"}`;
+  if (!openaiSingleton || openaiSingletonMode !== modeKey) {
     openaiSingleton = new OpenAI({
-      apiKey,
+      apiKey: creds.apiKey,
       timeout: OPENAI_TIMEOUT_MS,
-      ...(baseURL ? { baseURL } : {}),
+      ...(creds.baseURL ? { baseURL: creds.baseURL } : {}),
     });
-    openaiSingletonKeyFingerprint = fingerprint;
+    openaiSingletonMode = modeKey;
   }
   return openaiSingleton;
 }
@@ -367,29 +396,60 @@ async function runTool(tool: ToolDef, req: Request, res: Response): Promise<void
     try {
       parsed = JSON.parse(raw);
     } catch {
-      req.log.error({ raw }, "Coach: model returned non-JSON");
+      // Phase 3: do NOT log `raw` — it is the model's generated relationship
+      // text and may also echo the user's input. Event name only.
+      req.log.error(
+        { event: "coach_model_non_json", tool: tool.key, requestId: req.id },
+        "Coach: model returned non-JSON",
+      );
       res.status(502).json({ error: "The assistant returned an unexpected response. Try again." });
       return;
     }
 
     const required = (tool.schema as { required?: string[] }).required ?? [];
     if (typeof parsed !== "object" || parsed === null) {
-      req.log.error({ parsed }, "Coach: model output is not an object");
+      // Phase 3: do NOT log `parsed` — same reason as above.
+      req.log.error(
+        { event: "coach_model_invalid_shape", tool: tool.key, requestId: req.id },
+        "Coach: model output is not an object",
+      );
       res.status(502).json({ error: "The assistant returned an unexpected response. Try again." });
       return;
     }
     const obj = parsed as Record<string, unknown>;
     const missing = required.filter((k) => !(k in obj));
     if (missing.length > 0) {
-      req.log.error({ missing }, "Coach: model output missing required fields");
+      // `missing` is a list of schema field NAMES, not user content — safe.
+      req.log.error(
+        {
+          event: "coach_model_missing_required_fields",
+          tool: tool.key,
+          requestId: req.id,
+          missing,
+        },
+        "Coach: model output missing required fields",
+      );
       res.status(502).json({ error: "The assistant returned an incomplete response. Try again." });
       return;
     }
 
     res.json({ tool: tool.key, result: parsed });
   } catch (err: unknown) {
-    const status = (err as { status?: number })?.status;
-    req.log.error({ err, status }, "Coach: OpenAI call failed");
+    // Phase 3: never log the full provider error object — OpenAI SDK errors
+    // can carry the request body, response body, headers, and prompts on
+    // properties like `err.body`, `err.response`, `err.headers`, `err.cause`.
+    const meta = safeErrorMeta(err);
+    const status = meta.status;
+    req.log.error(
+      {
+        event: "coach_provider_error",
+        tool: tool.key,
+        requestId: req.id,
+        errorName: meta.errorName,
+        errorStatus: status,
+      },
+      "Coach: OpenAI call failed",
+    );
     if (status === 429) {
       res.status(503).json({ error: "The assistant is busy right now. Please try again in a moment." });
       return;
