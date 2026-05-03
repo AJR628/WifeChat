@@ -332,7 +332,12 @@ type ProviderMode = "openai" | "replit-proxy";
 let openaiSingleton: OpenAI | null = null;
 let openaiSingletonMode: string | null = null;
 
-function selectCredentials(): { mode: ProviderMode; apiKey: string; baseURL?: string } | null {
+// Exported (Phase 6) so that provider-selection regression tests can call
+// it directly with a controlled `process.env`, without us widening the HTTP
+// surface or having to mock the OpenAI client. This is a pure function over
+// `process.env`; it has no side effects, never logs, and never touches the
+// network. Production code should NOT import this from outside this module.
+export function selectCredentials(): { mode: ProviderMode; apiKey: string; baseURL?: string } | null {
   const useReplitProxy = process.env["USE_REPLIT_OPENAI_PROXY"] === "true";
   if (useReplitProxy) {
     const apiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];

@@ -23,6 +23,13 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
+- `pnpm --filter @workspace/api-server test` — run API server regression tests
+  (Node's built-in `node:test` via `tsx`; deterministic and offline — **no
+  live OpenAI calls**). Covers Phase 1 perimeter (CORS allowlist,
+  X-Request-Id, JSON error handler), Phase 2 kill switch, Phase 3
+  privacy-safe logging + provider selection, and Phase 4 safety tripwire +
+  `/api/chat` removal. See `docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md`
+  §"Phase 6 — Test Harness + Regression Tests".
 
 ## Artifacts
 
