@@ -1,0 +1,319 @@
+I’ll audit the current trust/privacy copy across web, mobile, backend docs, and the Phase 5 section before writing the implementation prompt. The key is making user-facing claims match what the code actually does now after Phases 1–4.
+
+Received app response
+
+The biggest Phase 5 mismatch is still web copy: the header says “Private · Not stored · Not therapy,” which overpromises compared with “sent to OpenAI for processing.” Mobile is closer: it says drafts are on-device and text sent to the assistant is processed by an AI provider.
+
+Received app response
+Thought for 38s
+
+Phase 5 is the right next step. Phases 1–4 made the backend safer; Phase 5 should make the user-facing promises match the actual code.
+
+Right now the main issue is not backend behavior. It is trust copy drift.
+
+Audit summary
+Biggest mismatch: web header copy
+
+The web app header still says:
+
+“Private · Not stored · Not therapy”
+
+That appears in RelationshipStudio.tsx .
+
+That is too broad. The app does not appear to store entries in a WifeChat database, and Phase 3 made logs metadata-only, but user text is still sent to the backend and OpenAI for processing. So “Not stored” is not precise enough.
+
+Better:
+
+Private by design · Not therapy
+
+or:
+
+Private by design · AI-assisted · Not therapy
+
+Then add a clear “How privacy works” link/panel.
+
+Web has no privacy page or route yet
+
+App.tsx just renders <RelationshipStudio /> directly, with no route structure or privacy page . So Phase 5 should either:
+
+add a very simple /privacy route without heavy dependencies, or
+add an in-app privacy modal/panel.
+
+I would prefer a simple in-app privacy panel/modal for now, because this is still a small Vite app and we should avoid routing complexity unless the repo already has it.
+
+Mobile copy is closer, but still needs tightening
+
+Mobile Profile already says it is a communication coach, not therapy/crisis support, not a way to track/score a partner, drafts live on-device, and text sent to the assistant is processed by an AI provider .
+
+Mobile Studio says drafts are stored on-device and the app never claims to know what the partner thinks .
+
+Mobile Saved says “Nothing you write today is sent to a cloud account or synced between devices” . That is mostly okay, but I would tighten it so users do not confuse “not synced to cloud account” with “not sent to AI provider.” The storage code confirms mobile saves per-tool message history locally in AsyncStorage, capped at 200 messages per tool, plus local tone preference .
+
+Phase 5 implementation plan
+Goal
+
+Make the app’s privacy and safety copy truthful, clear, and consistent across:
+
+web app
+mobile app
+replit.md
+docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md
+User-facing copy should say
+
+Truthful claims:
+
+This is a communication tool, not therapy.
+This is not emergency support.
+If safety/crisis language is detected, the app may return safety resources instead of a normal rewrite.
+Messages sent to the assistant are sent to the WifeChat API and then to OpenAI to generate a response.
+The app does not save your entries to a WifeChat cloud account/database in this prototype.
+Server logs are designed to be metadata-only and not include relationship message content.
+Mobile conversations/drafts are stored on the device only via local storage.
+US crisis resources are defaults; users outside the US should contact local emergency/crisis resources.
+
+Avoid:
+
+“Not stored” by itself.
+“Completely private.”
+“Anonymous.”
+“Confidential” unless you mean it legally.
+Any provider-retention claims not verified from OpenAI docs.
+Any suggestion that the app replaces therapy, legal advice, emergency help, or domestic-violence advocacy.
+Recommended UI changes
+Web
+
+In RelationshipStudio.tsx:
+
+Replace:
+
+Private · Not stored · Not therapy
+
+with:
+
+Private by design · Not therapy
+
+Add a small button/link:
+
+How privacy works
+
+Clicking it opens a modal or expandable panel.
+
+The panel should include:
+
+What gets sent
+What WifeChat does not save
+What is stored locally
+Logs are metadata-only
+AI provider note
+Safety/crisis note
+US resources note
+
+Since App.tsx has no routing, avoid adding a full router unless Replit verifies it is already supported. A modal or inline panel is enough.
+
+Mobile
+
+Update copy in:
+
+app/(tabs)/profile.tsx
+app/(tabs)/index.tsx
+app/(tabs)/saved.tsx
+
+Main change: distinguish “stored on this device” from “sent to AI provider when you ask the assistant.”
+
+Suggested wording:
+
+Drafts and conversations are stored on this device. When you ask the assistant for help, your text is sent to the WifeChat API and OpenAI to generate a response. WifeChat does not sync this to a cloud account in this prototype.
+
+Docs pass
+
+This is important. Have Replit reconcile stale top-level docs with the actual code after Phases 1–4.
+
+Specifically:
+
+Fix stale mentions of open CORS.
+Fix stale max_completion_tokens: 8192.
+Fix stale Replit proxy preference.
+Fix /api/health vs /api/healthz.
+Mark Phases 1–4 accurately.
+Add Phase 5 shipped only after implementation.
+Keep “unverified provider retention” as unverified unless proven.
+Replit prompt
+You are working in the WifeChat repo.
+
+Goal:
+Implement Phase 5 — Frontend Trust + Privacy Copy from docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md, and perform a docs-against-code truth pass so all user-facing and agent-facing documentation matches the current implementation after Phases 1–4.
+
+Important:
+- Audit first with exact file:line evidence.
+- Make no assumptions.
+- Prove every claim against current code before writing it in UI/docs.
+- Implement only Phase 5 and documentation truth cleanup.
+- Do not add auth, billing, database, Redis, Stripe, analytics, telemetry, saved cloud history, or new product features.
+- Do not change coach prompts.
+- Do not change safety tripwire behavior.
+- Do not change backend route behavior unless you find a documented typo-only response issue that must be fixed.
+- Do not reintroduce /api/chat.
+- Do not add generic /api/coach/session.
+- Do not claim provider retention behavior unless verified from configured provider docs; mark it unverified or describe generally.
+- Keep language clear, truthful, and calm.
+
+Context:
+WifeChat is a sensitive relationship communication app. Backend Phases 1–4 are now implemented:
+- Phase 1: API perimeter, CORS allowlist, request IDs, JSON errors, helmet.
+- Phase 2: token cap, OpenAI timeout, kill switch.
+- Phase 3: privacy-safe metadata-only logging, OPENAI_API_KEY preferred by default, Replit proxy opt-in.
+- Phase 4: deterministic safety tripwire before OpenAI, static schema-shaped safety responses, untrusted-input framing.
+The frontend trust copy must now reflect what the code actually does.
+
+Before implementation, audit and report exact file:line evidence for:
+
+1. Web trust copy:
+- artifacts/wife-chat/src/components/RelationshipStudio.tsx
+- Verify any “Private”, “Not stored”, “Not therapy”, crisis, or privacy language.
+
+2. Web routing/app structure:
+- artifacts/wife-chat/src/App.tsx
+- Determine whether adding a /privacy route is straightforward or whether an in-app modal/panel is safer.
+
+3. Web client behavior:
+- artifacts/wife-chat/src/lib/coach.ts
+- Verify text is sent to /api/coach/*.
+
+4. Mobile trust/privacy copy:
+- artifacts/wife-chat-mobile/app/(tabs)/index.tsx
+- artifacts/wife-chat-mobile/app/(tabs)/saved.tsx
+- artifacts/wife-chat-mobile/app/(tabs)/profile.tsx
+
+5. Mobile local storage behavior:
+- artifacts/wife-chat-mobile/lib/storage.ts
+- Verify what is stored locally, key names, and message cap.
+
+6. Backend truth:
+- artifacts/api-server/src/routes/index.ts
+- artifacts/api-server/src/routes/health.ts
+- artifacts/api-server/src/routes/coach.ts
+- artifacts/api-server/src/lib/logger.ts
+- artifacts/api-server/src/lib/safeLog.ts
+- artifacts/api-server/src/lib/safety.ts
+- Verify active routes, provider selection, logging rules, and safety intercept.
+
+7. Docs:
+- replit.md
+- docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md
+- Identify stale claims from earlier phases:
+  - open CORS if still mentioned as current
+  - max_completion_tokens: 8192 if still mentioned as current
+  - Replit proxy preferred by default if still mentioned as current
+  - /api/health if actual route is /api/healthz
+  - “Not stored” if overbroad
+  - any risks marked current that have been shipped/fixed
+
+Implementation requirements:
+
+1. Web trust copy
+In artifacts/wife-chat/src/components/RelationshipStudio.tsx:
+- Replace “Private · Not stored · Not therapy” with truthful copy, suggested:
+  “Private by design · Not therapy”
+- Add a clear “How privacy works” affordance.
+- Because App.tsx currently has no router, prefer a simple modal, expandable panel, or inline privacy card unless you verify a route is already supported.
+- Do not add React Router or routing dependencies unless absolutely necessary.
+- The privacy panel should explain, in plain language:
+  a. Messages you submit are sent to the WifeChat API and OpenAI to generate a response.
+  b. WifeChat does not save your entries to a WifeChat cloud account/database in this prototype.
+  c. Server logs are designed to be metadata-only and not include relationship message content.
+  d. Mobile drafts/conversations may be stored locally on the device.
+  e. Safety/crisis language may trigger a static safety response instead of a normal rewrite.
+  f. This is not therapy, legal advice, medical advice, or emergency support.
+  g. US crisis resources are defaults; users outside the US should contact local emergency/crisis resources.
+  h. OpenAI/provider retention behavior is not claimed unless verified. Use cautious wording like:
+     “Your text is processed by the AI provider to generate a response. We do not make a specific retention promise here.”
+
+2. Mobile trust copy
+Update copy in:
+- artifacts/wife-chat-mobile/app/(tabs)/index.tsx
+- artifacts/wife-chat-mobile/app/(tabs)/saved.tsx
+- artifacts/wife-chat-mobile/app/(tabs)/profile.tsx
+
+Make it truthful and consistent:
+- Drafts/conversations are stored on this device.
+- When you ask the assistant for help, text is sent to the WifeChat API and OpenAI to generate a response.
+- WifeChat does not sync this to a cloud account in this prototype.
+- The app is not therapy or emergency support.
+- The app does not track, score, diagnose, or surveil a partner.
+- US crisis numbers are defaults.
+
+Avoid broad wording like:
+- “Nothing you write today is sent…” unless qualified, because assistant requests are sent to the API/AI provider.
+- “Not stored” without specifying where.
+- “Completely private” or “anonymous.”
+
+3. Docs truth pass
+Update replit.md:
+- Confirm active routes: /api/healthz and /api/coach/*.
+- Confirm /api/chat removed.
+- Confirm OPENAI_API_KEY is default; USE_REPLIT_OPENAI_PROXY=true is opt-in.
+- Confirm Phase 3 logging policy.
+- Confirm Phase 4 safety tripwire.
+- Add a “User-facing privacy language” section summarizing what the UI now says.
+- Fix any stale statements.
+
+Update docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md:
+- Reconcile the “Current Product Shape” section with actual code after Phases 1–4.
+- Update the risk table or add a “Resolved risks” note so fixed items are not still described as current.
+- Mark Phase 5 shipped only after changes and verification.
+- Preserve remaining deferred risks:
+  R11 durable rate limiting / quotas
+  R16 locale-aware crisis resources
+  R17 deeper schema value validation if still not fixed
+  R18 automated tests
+- Keep provider retention behavior marked unverified unless proven.
+- Correct /api/health vs /api/healthz.
+
+4. Verification commands
+Run:
+pnpm --filter @workspace/wife-chat typecheck
+pnpm --filter @workspace/wife-chat-mobile typecheck
+pnpm --filter @workspace/api-server typecheck
+
+Run route/surface checks:
+rg -n "api/chat|chatRouter|routes/chat" artifacts/
+Expected: no live route.
+
+Run copy checks:
+rg -n "Not stored|not stored|completely private|anonymous|confidential" artifacts/wife-chat artifacts/wife-chat-mobile docs replit.md
+Manually inspect each hit and confirm no overbroad promise remains.
+
+Run backend truth checks:
+rg -n "healthz|/api/health|/api/coach|OPENAI_API_KEY|USE_REPLIT_OPENAI_PROXY|AI_INTEGRATIONS" replit.md docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md artifacts/api-server/src
+
+Run unsafe logging regression check:
+rg -n 'req\.log\.(error|warn|info).*\{\s*(raw|parsed|err|body|message|messages|prompt)' artifacts/api-server/src
+Expected: no unsafe logging patterns.
+
+5. Manual UI verification
+Web:
+- App still renders.
+- Header no longer says “Not stored”.
+- “How privacy works” opens/displays clear copy.
+- Footer crisis copy still appears.
+- All four tools still visible and usable.
+
+Mobile:
+- Studio/Profile/Saved copy is truthful.
+- No claim implies assistant text is never sent anywhere.
+- No claim implies cloud sync/account storage exists.
+- No UI crash.
+- Planner/Practice coming-soon behavior remains unchanged.
+
+6. Deliver final report
+Include:
+1. Audit findings with file:line evidence.
+2. What user-facing privacy claims changed and why.
+3. Exact docs truth-pass changes.
+4. Files changed.
+5. Commands run and results.
+6. Copy search results and explanation of remaining hits.
+7. Behavior changes visible to clients.
+8. Confirmation /api/chat was not reintroduced.
+9. Confirmation no backend safety/logging behavior changed except docs/copy.
+10. Remaining risks deferred after Phase 5.
