@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -8,6 +9,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +18,7 @@ import {
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { TOOLS, isToolKey, type ToolKey } from "@/constants/tools";
 import { useColors } from "@/hooks/useColors";
 import { sendChat, ChatError } from "@/lib/chat";
 import {
@@ -28,10 +31,15 @@ import {
 
 const HEADER_HEIGHT = 56;
 
-export default function ChatScreen() {
+export default function CoachScreen() {
+  const params = useLocalSearchParams<{ tool?: string }>();
+  const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === "web";
+
+  const toolKey: ToolKey = isToolKey(params.tool) ? params.tool : "before-send";
+  const tool = TOOLS[toolKey];
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>("");
@@ -42,17 +50,23 @@ export default function ChatScreen() {
   messagesRef.current = messages;
 
   useEffect(() => {
-    loadMessages().then((loaded) => {
+    let cancelled = false;
+    setHydrated(false);
+    loadMessages(toolKey).then((loaded) => {
+      if (cancelled) return;
       setMessages(loaded);
       setHydrated(true);
     });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [toolKey]);
 
   useEffect(() => {
     if (hydrated) {
-      saveMessages(messages);
+      saveMessages(toolKey, messages);
     }
-  }, [messages, hydrated]);
+  }, [toolKey, messages, hydrated]);
 
   const canSend = input.trim().length > 0 && !sending;
 
@@ -99,16 +113,23 @@ export default function ChatScreen() {
     if (messagesRef.current.length === 0) return;
     const doClear = () => {
       setMessages([]);
-      clearMessages();
+      clearMessages(toolKey);
     };
     if (Platform.OS === "web") {
       doClear();
       return;
     }
-    Alert.alert("Start a new chat?", "This will clear the current conversation.", [
+    Alert.alert("Start over?", "This clears the current session for this tool.", [
       { text: "Cancel", style: "cancel" },
       { text: "Clear", style: "destructive", onPress: doClear },
     ]);
+  }, [toolKey]);
+
+  const handleChip = useCallback((chipText: string) => {
+    setInput((prev) => {
+      if (!prev.trim()) return chipText;
+      return `${prev.trim()} — ${chipText.toLowerCase()}`;
+    });
   }, []);
 
   const inverted = useMemo(() => [...messages].reverse(), [messages]);
@@ -116,10 +137,7 @@ export default function ChatScreen() {
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        root: {
-          flex: 1,
-          backgroundColor: colors.background,
-        },
+        root: { flex: 1, backgroundColor: colors.background },
         flex: { flex: 1 },
         header: {
           paddingTop: isWeb ? 67 : insets.top,
@@ -131,44 +149,57 @@ export default function ChatScreen() {
           height: HEADER_HEIGHT,
           flexDirection: "row",
           alignItems: "center",
-          justifyContent: "space-between",
-          paddingHorizontal: 16,
+          paddingHorizontal: 8,
         },
-        brandRow: {
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 10,
-        },
-        brandBadge: {
-          width: 32,
-          height: 32,
-          borderRadius: 10,
-          backgroundColor: colors.primary,
+        iconBtn: {
+          width: 40,
+          height: 40,
+          borderRadius: 20,
           alignItems: "center",
           justifyContent: "center",
         },
-        brandTitle: {
-          fontSize: 16,
+        headerCenter: {
+          flex: 1,
+          alignItems: "center",
+          paddingHorizontal: 4,
+        },
+        headerTitle: {
+          fontSize: 15,
           fontFamily: "Inter_600SemiBold",
           color: colors.foreground,
           lineHeight: 18,
         },
-        brandSub: {
+        headerSub: {
           fontSize: 11,
           fontFamily: "Inter_400Regular",
           color: colors.mutedForeground,
           marginTop: 1,
         },
-        clearBtn: {
-          width: 36,
-          height: 36,
-          borderRadius: 18,
+        goalBanner: {
+          backgroundColor: colors.accent,
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          flexDirection: "row",
+          alignItems: "flex-start",
+          gap: 10,
+        },
+        goalIcon: {
+          width: 26,
+          height: 26,
+          borderRadius: 8,
+          backgroundColor: colors.card,
           alignItems: "center",
           justifyContent: "center",
+          marginTop: 1,
         },
-        list: {
+        goalText: {
           flex: 1,
+          fontSize: 12,
+          lineHeight: 17,
+          fontFamily: "Inter_500Medium",
+          color: colors.accentForeground,
         },
+        list: { flex: 1 },
         listContent: {
           paddingHorizontal: 14,
           paddingTop: 14,
@@ -257,6 +288,29 @@ export default function ChatScreen() {
           fontFamily: "Inter_400Regular",
           lineHeight: 20,
         },
+        chipsBar: {
+          backgroundColor: colors.background,
+        },
+        chipsContent: {
+          paddingHorizontal: 12,
+          paddingTop: 8,
+          paddingBottom: 6,
+          gap: 8,
+          flexDirection: "row",
+        },
+        chip: {
+          paddingHorizontal: 12,
+          paddingVertical: 7,
+          borderRadius: 999,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+        },
+        chipText: {
+          fontSize: 12,
+          fontFamily: "Inter_500Medium",
+          color: colors.foreground,
+        },
         inputBar: {
           backgroundColor: colors.card,
           borderTopWidth: StyleSheet.hairlineWidth,
@@ -319,27 +373,36 @@ export default function ChatScreen() {
 
       <View style={styles.header}>
         <View style={styles.headerInner}>
-          <View style={styles.brandRow}>
-            <View style={styles.brandBadge}>
-              <Feather name="heart" size={16} color={colors.primaryForeground} />
-            </View>
-            <View>
-              <Text style={styles.brandTitle}>WifeChat</Text>
-              <Text style={styles.brandSub}>Private · Not therapy</Text>
-            </View>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.iconBtn, { opacity: pressed ? 0.6 : 1 }]}
+            accessibilityLabel="Back"
+            testID="back-button"
+          >
+            <Feather name="chevron-left" size={24} color={colors.foreground} />
+          </Pressable>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>{tool.title}</Text>
+            <Text style={styles.headerSub}>Guided mode</Text>
           </View>
           <Pressable
             onPress={handleClear}
             style={({ pressed }) => [
-              styles.clearBtn,
+              styles.iconBtn,
               { opacity: messages.length === 0 ? 0.3 : pressed ? 0.6 : 1 },
             ]}
             disabled={messages.length === 0}
-            accessibilityLabel="Clear conversation"
+            accessibilityLabel="Clear this session"
             testID="clear-button"
           >
-            <Feather name="edit" size={20} color={colors.mutedForeground} />
+            <Feather name="rotate-ccw" size={18} color={colors.mutedForeground} />
           </Pressable>
+        </View>
+        <View style={styles.goalBanner}>
+          <View style={styles.goalIcon}>
+            <Feather name={tool.icon} size={14} color={colors.primary} />
+          </View>
+          <Text style={styles.goalText}>{tool.outcome}</Text>
         </View>
       </View>
 
@@ -351,12 +414,10 @@ export default function ChatScreen() {
         {messages.length === 0 && hydrated ? (
           <View style={styles.empty}>
             <View style={styles.emptyIconWrap}>
-              <Feather name="message-circle" size={26} color={colors.primary} />
+              <Feather name={tool.icon} size={26} color={colors.primary} />
             </View>
-            <Text style={styles.emptyTitle}>Say the hard thing, well.</Text>
-            <Text style={styles.emptySub}>
-              A calm coach to help you write the next message, repair after a fight, or plan a hard talk.
-            </Text>
+            <Text style={styles.emptyTitle}>{tool.empty.title}</Text>
+            <Text style={styles.emptySub}>{tool.empty.sub}</Text>
           </View>
         ) : (
           <FlatList
@@ -381,13 +442,35 @@ export default function ChatScreen() {
           />
         )}
 
+        <View style={styles.chipsBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {tool.chips.map((c) => (
+              <Pressable
+                key={c}
+                onPress={() => handleChip(c)}
+                style={({ pressed }) => [styles.chip, { opacity: pressed ? 0.7 : 1 }]}
+                accessibilityRole="button"
+                accessibilityLabel={`Suggestion: ${c}`}
+                testID={`chip-${c}`}
+              >
+                <Text style={styles.chipText}>{c}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
         <View style={styles.inputBar}>
           <View style={styles.inputRow}>
             <TextInput
               style={styles.inputField}
               value={input}
               onChangeText={setInput}
-              placeholder="Message your coach…"
+              placeholder={tool.placeholder}
               placeholderTextColor={colors.mutedForeground}
               multiline
               editable={!sending}
@@ -401,7 +484,7 @@ export default function ChatScreen() {
                 !canSend && styles.sendBtnDisabled,
                 { opacity: pressed && canSend ? 0.85 : 1 },
               ]}
-              accessibilityLabel="Send message"
+              accessibilityLabel="Send"
               testID="send-button"
             >
               {sending ? (

@@ -1,0 +1,125 @@
+You are working in the WifeChat repo.
+
+Goal:
+Redesign the native mobile UI direction so WifeChat does NOT feel like a generic chatbot. It should feel like a relationship communication service: guided, intentional, category-based, and built around relationship moments.
+
+Important:
+- Do not implement backend changes.
+- Do not add auth, database, billing, or saved cloud history yet.
+- Do not resurrect or depend on a generic /api/chat direction without noting the safety-plan conflict.
+- Focus on UI/UX product direction and a prototype-level mobile layout.
+- Make no assumptions. Audit current mobile files first with file:line evidence.
+- Keep changes minimal and reversible.
+
+Product direction:
+WifeChat should feel like “Relationship Studio,” not “ChatGPT with pink colors.”
+
+The mobile app should be organized around relationship actions:
+
+Home / Dashboard:
+- Warm header: “What do you need help with?”
+- Primary action cards:
+  1. Before You Send
+  2. Repair After a Fight
+  3. Plan a Hard Conversation
+  4. Daily Check-In
+  5. Practice Conversation
+- Each card should explain the outcome, not the AI feature.
+  Example: “Turn a reactive text into something clear and kind.”
+
+Saved / History area:
+- Add a prototype “Saved” section or tab, even if local-only/mock for now.
+- Categories:
+  - Drafts
+  - Repair Messages
+  - Check-Ins
+  - Hard Conversations
+  - Things That Worked
+- Clearly label any local-only storage as “Saved on this device” if applicable.
+- Do not imply cloud sync or account storage.
+
+Conversation UI:
+- Avoid making the whole app a blank open chat.
+- If there is a chat-like screen, it should be inside a specific guided mode, such as:
+  - “Practice this conversation”
+  - “Coach me through this”
+  - “Refine this message”
+- The screen should show the selected relationship goal, not just bubbles.
+- Add structured chips/buttons like:
+  - Make it softer
+  - Make it more direct
+  - Shorter
+  - Add accountability
+  - Help me repair
+  - Save this
+- Keep user agency: the app suggests, the user chooses.
+
+Future feature affordances:
+Show these as disabled/coming-soon cards or light placeholders only:
+- Saved history
+- Relationship patterns
+- Weekly check-in ritual
+- Partner communication profile
+- Conversation practice
+- Date/connection ideas
+- “Things that worked”
+Do not build the full features yet.
+
+UX feel:
+- Calm, premium, trustworthy
+- More like a private communication coach than a chatbot
+- Mobile-first, one-handed friendly
+- Clear categories and outcomes
+- Less blank text box, more guided flows
+- Avoid therapy claims, diagnosis language, or partner-scoring language
+
+Suggested layout:
+1. Bottom tabs:
+   - Studio
+   - Saved
+   - Rituals
+   - Profile
+
+2. Studio tab:
+   - Hero card
+   - “Choose a moment” tool grid
+   - Recent local drafts preview
+   - Safety/privacy note
+
+3. Saved tab:
+   - Local saved items grouped by category
+   - Empty states for now
+   - Copy/edit/delete affordances as prototype UI only if simple
+
+4. Rituals tab:
+   - Daily Check-In
+   - Weekly Reset
+   - Appreciation Prompt
+   - Coming-soon states are okay
+
+5. Profile tab:
+   - Communication preferences
+   - Tone preference
+   - Privacy note
+   - No real auth/profile backend yet
+
+Deliver:
+1. Audit of current mobile UI with file:line evidence.
+2. Proposed UI/UX structure.
+3. Minimal implementation plan.
+4. Implement only the UI changes that are safe and local.
+5. Do not add backend persistence.
+6. Do not add auth.
+7. Do not add billing.
+8. Do not change production safety plan except to add a short note if the current UI conflicts with it.
+9. Run typecheck.
+10. Summarize changed files and what remains mock/local-only.
+
+Acceptance criteria:
+- App no longer opens as a generic blank chat clone.
+- Home screen communicates clear relationship-service value.
+- Main actions are relationship categories, not generic “chat.”
+- Saved/categories are visible as product direction, even if local-only or placeholder.
+- Any chat UI is framed as a guided relationship mode.
+- No unsafe claims like “we know what your partner thinks.”
+- No cloud history implied unless actually implemented.

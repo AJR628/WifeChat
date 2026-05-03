@@ -22,7 +22,8 @@ const queryClient = new QueryClient();
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="coach/[tool]" options={{ animation: "slide_from_right" }} />
     </Stack>
   );
 }

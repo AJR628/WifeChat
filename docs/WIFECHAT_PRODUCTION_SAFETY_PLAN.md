@@ -105,6 +105,32 @@ each phase.
 | R17 | Schema's `required` check at `coach.ts:333-345` only verifies key presence, not that values are non-empty strings or that array fields meet `minItems`. A model returning `{ better: "" }` would render an empty card. | Low–Medium | `coach.ts:333-345` | Add minimal value-shape check; pair with Phase 2 or Phase 4. |
 | R18 | Zero automated tests exist anywhere in the repo. | Medium | Verified: `find artifacts -name "*.test.*" -o -name "*.spec.*"` returns no results. | Phase 6. |
 
+### Known active conflict with this plan (added by mobile UI work)
+
+- **`POST /api/chat` was resurrected** by the Expo mobile companion task
+  (see commit `d76fd06…` — Task #2). The mobile app at
+  `artifacts/wife-chat-mobile/lib/chat.ts:17` calls `/api/chat`, and the
+  endpoint exists again on the API server. This directly conflicts with
+  the Implementation Rule below: "no generic `/api/chat` route
+  resurrection." It is being left in place for now because the mobile
+  prototype depends on it, but it must be revisited:
+  - Either fold the mobile chat into the structured `/api/coach/*` endpoints
+    (preferred, matches the structured-output safety story), or
+  - Apply the same passcode + rate-limit + safety-intercept guardrails to
+    `/api/chat` as Phase 4 ships for `/api/coach/*`, and document why a
+    freeform endpoint is acceptable for the mobile companion.
+  Until then, treat `/api/chat` as a known unmitigated surface and do not
+  expand its callers beyond the mobile app.
+- The mobile UI restructure (Studio / Saved / Rituals / Profile tabs +
+  guided coach screens) is **UI-only** and adds no new server surface,
+  no auth, no cloud persistence, and no new dependencies. Drafts and
+  Saved categories are placeholder UI; the only persisted state on
+  device is per-tool message history (`AsyncStorage`,
+  `artifacts/wife-chat-mobile/lib/storage.ts`) and a local tone
+  preference. The header/profile copy now says "Saved on this device"
+  and "Tone shaping does not affect responses yet" to keep the privacy
+  promise honest.
+
 ### Items from earlier audit that are **already fixed** or were overstated
 
 - **Legacy `/api/chat` route is gone.** Earlier audits flagged this as a
