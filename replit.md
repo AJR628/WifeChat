@@ -55,7 +55,34 @@ OpenAI credentials: prefers Replit AI Integrations
 auto-provisioned), falls back to user-supplied `OPENAI_API_KEY`. Model:
 `gpt-5-mini` (uses `max_completion_tokens`, no `temperature`).
 
-The legacy `POST /api/chat` endpoint is still mounted but unused by the new
-UI.
+The legacy `POST /api/chat` endpoint has been removed; only `/api/health`
+and `/api/coach/*` are mounted.
+
+#### API perimeter (Phase 1)
+
+- **CORS**: allowlist driven by `ALLOWED_ORIGINS` (comma-separated). In
+  production an origin must appear in `ALLOWED_ORIGINS` to be accepted; in
+  development `localhost`, `127.0.0.1`, and `*.replit.dev` / `*.repl.co` /
+  `*.replit.app` are also allowed. Disallowed origins receive responses
+  with no `Access-Control-Allow-Origin` header (browser blocks the call).
+- **Request ID**: every response includes an `X-Request-Id` header. The
+  same id is propagated to `pino-http` logs via `genReqId`. Clients may
+  send their own `X-Request-Id` (≤128 chars) and it will be honored;
+  otherwise a UUIDv4 is generated.
+- **Global JSON error handler**: all uncaught errors return
+  `{ error, requestId }` as JSON — never an HTML error page.
+- **Helmet**: default headers enabled (no custom CSP).
+- **Body parsing**: only `express.json({ limit: "64kb" })`. The unused
+  `express.urlencoded(...)` middleware was removed.
+
+#### Deployment assumption — `trust proxy: 1`
+
+`app.set("trust proxy", 1)` (`artifacts/api-server/src/app.ts`) assumes
+**exactly one trusted proxy hop in front of the Node process** (the
+Replit edge / autoscale router). If the topology changes — direct
+exposure with no proxy, or two hops — `req.ip` will collapse to the
+proxy's address and the per-IP rate limiter will treat all callers as
+one bucket. Re-verify this assumption when changing deployment target
+or adding any reverse proxy in front of Replit.
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

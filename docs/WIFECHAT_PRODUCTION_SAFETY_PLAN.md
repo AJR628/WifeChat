@@ -183,11 +183,78 @@ each phase.
 Each phase is one PR. No mixing. After each phase ships, re-verify the
 relevant section of this file and check off the boxes.
 
-### Phase 1 — API Perimeter
+### Phase 1 — API Perimeter ✅ Shipped (May 2026)
 
 **Goal:** Close the four cheapest, highest-leverage perimeter holes
 (R1, R8, R9, R10; optional R14) so the API is no longer an "anyone can
 call from any browser" surface.
+
+**What changed:**
+- `artifacts/api-server/src/app.ts` rewritten:
+  - `app.use(cors())` replaced with allowlist driven by `ALLOWED_ORIGINS`
+    env var (comma-separated). Production denies any origin not in the
+    list. Development additionally allows `localhost`, `127.0.0.1`, and
+    `*.replit.dev` / `*.repl.co` / `*.replit.app`. Requests with no
+    `Origin` header (curl, server-to-server) pass through.
+  - `pinoHttp` now sets `genReqId`, which honors a caller-supplied
+    `X-Request-Id` (≤128 chars) or generates a UUIDv4, and writes it to
+    the response as `X-Request-Id`. The same id appears in every log
+    line for that request.
+  - Global JSON error handler `(err, req, res, _next)` registered after
+    routes. Returns `{ error, requestId }` as `application/json` for any
+    uncaught error (e.g. `body-parser` `SyntaxError` on bad JSON now
+    returns a 400 JSON body, not Express's HTML page).
+  - `app.use(express.urlencoded({ extended: true }))` removed (no
+    consumer in repo — verified by `rg`).
+  - `helmet()` mounted with default settings (no custom CSP); resolves
+    R14 at the cheapest level.
+- `artifacts/api-server/package.json` adds `helmet@^8`.
+- `replit.md` documents `ALLOWED_ORIGINS`, `X-Request-Id`, the JSON
+  error contract, and the `trust proxy: 1` deployment assumption.
+
+**Verification (run on this machine):**
+- `pnpm --filter @workspace/api-server typecheck` → pass.
+- `pnpm --filter @workspace/wife-chat-mobile typecheck` → pass.
+- `rg -n "api/chat|chatRouter|routes/chat" artifacts/` → no matches.
+- `curl -i -H "Origin: http://localhost:5173" -X OPTIONS http://localhost:8080/api/coach/before-send`
+  → `204` with `Access-Control-Allow-Origin: http://localhost:5173`.
+- `curl -i -H "Origin: https://evil.example" -X OPTIONS http://localhost:8080/api/coach/before-send`
+  → `200` with **no** `Access-Control-Allow-Origin` header.
+- `curl -i http://localhost:8080/api/health` → response includes
+  `X-Request-Id: <uuid>`; the same id appears in the pino log line for
+  that request.
+- `curl -i -X POST http://localhost:8080/api/coach/before-send -H "Content-Type: application/json" --data-binary 'not-json'`
+  → `400`, `Content-Type: application/json`, body
+  `{"error":"Invalid request body.","requestId":"<uuid>"}`.
+
+**Behavior changes visible to clients:**
+- Browsers from origins not in `ALLOWED_ORIGINS` (and outside the dev
+  allowlist) can no longer read responses. **Action required before any
+  prod deploy:** set `ALLOWED_ORIGINS` to the deployed frontend's exact
+  origin(s); otherwise the web app will be blocked by the browser.
+- All responses now carry `X-Request-Id` plus the default helmet
+  security headers (HSTS, X-Content-Type-Options, Referrer-Policy:
+  no-referrer, X-Frame-Options: SAMEORIGIN, default CSP, etc.).
+- Malformed-JSON bodies now return a JSON error envelope with a
+  `requestId` instead of an HTML page.
+
+**Remaining risks (intentionally deferred to later phases):**
+- R2 — relationship content still echoed into logs via
+  `req.log.error({ raw }, …)` etc. **Phase 3.** Note: the new global
+  error handler logs `err` (which for `body-parser` includes the
+  `body` field with the raw payload). This is acceptable for the
+  4xx parse-error path because the body is by definition not valid
+  JSON coach input, but Phase 3 should still narrow this log to
+  metadata-only for consistency.
+- R3 — no deterministic safety intercept. **Phase 4.**
+- R4, R5, R6 — token cap, request timeout, OpenAI singleton.
+  **Phase 2.**
+- R7 — frontend "Not stored" claim still overstated. **Phase 5.**
+- R11 — in-memory rate limiter. **Phase 7.**
+- R12 — `trust proxy: 1` assumption now documented but still
+  unverified against the actual Replit edge topology in production.
+  Re-verify on first prod deploy.
+- R13, R15, R16, R17, R18 — unchanged, see table.
 
 **Acceptance criteria:**
 - `cors()` is replaced with an allow-list driven by an `ALLOWED_ORIGINS`
