@@ -1,0 +1,204 @@
+You are working in the WifeChat repo.
+
+Goal:
+Verify the production-safety suggestions from the latest audit discussion, make no assumptions, and create a durable markdown plan file we can work through over time.
+
+Important:
+- Do NOT implement production fixes yet.
+- Do NOT modify app behavior.
+- Do NOT add dependencies.
+- Do NOT refactor code.
+- This pass is documentation/planning only.
+- Make no assumptions. Verify everything directly against the current repo.
+- Use exact file:line evidence for every claim.
+- If something from the previous audit is wrong, outdated, already fixed, or lower priority than claimed, say so clearly.
+- If you cannot verify something, mark it as “Unverified” instead of presenting it as fact.
+
+Context:
+WifeChat is now a Relationship Studio prototype with four bounded coach tools:
+- /api/coach/before-send
+- /api/coach/repair
+- /api/coach/planner
+- /api/coach/checkin
+
+The app should be built toward a safe production product, but we do not want to overbuild too early. Treat this as a sensitive relationship-data app, not a generic chatbot.
+
+Please verify these priority recommendations against the current repo:
+
+1. API perimeter hardening
+- CORS should be allowlist-based via ALLOWED_ORIGINS.
+- Production should not use open cors().
+- API responses should include X-Request-Id.
+- A global JSON error handler should exist.
+- express.urlencoded should be removed or limited if unused.
+- helmet/security headers may be useful.
+
+2. Cost and timeout guardrails
+- max_completion_tokens should be reduced from the current value if it is overly high.
+- OpenAI calls should have a request timeout.
+- OpenAI client should not need to be recreated per request if a singleton is simpler/safer.
+- Consider a temporary env kill switch, e.g. COACH_API_DISABLED=true.
+- Consider a temporary process-level daily request cap only if it is simple and clearly marked as non-production.
+
+3. Privacy-safe logging
+- Do not log raw user input.
+- Do not log generated relationship text.
+- Do not log raw model output.
+- Do not log full provider error objects if they may include prompts or user content.
+- Logs should include only safe metadata: requestId, route/tool, status, error class/status, duration, safety branch, rate-limit/quota events.
+
+4. Deterministic safety intercept
+- Add a pre-model tripwire for obvious self-harm, violence, fear for safety, threats, sexual coercion, stalking, or control language.
+- If tripped, return a static safety-oriented response and do not call OpenAI.
+- This should be a fail-safe tripwire, not a claim of perfect classification.
+- Log only safe metadata like event type/category/requestId.
+- Confirm whether the frontend can render a safety response shape cleanly.
+
+5. Frontend trust/privacy copy
+- Replace any overly broad “Not stored” promise unless it is fully true across app logs, server, provider/proxy, and retention.
+- Add a simple /privacy page or equivalent.
+- Explain what is sent to the AI provider.
+- Explain that the app is not therapy and not emergency support.
+- Keep the language truthful and user-friendly.
+
+6. Basic tests
+- Add tests later for happy paths, invalid input, passcode, rate limits, malformed model output, safety intercept, CORS allow/deny, and log redaction.
+- For this task, only document the test plan unless a test file already exists and needs to be referenced.
+
+7. Things to delay unless evidence says otherwise
+- Do not prioritize couple mode yet.
+- Do not prioritize saved history yet.
+- Do not prioritize Stripe yet.
+- Do not prioritize voice analysis yet.
+- Do not prioritize deep OpenAI health checks yet.
+- Do not prioritize full Redis/Postgres quota storage until public/beta exposure requires it.
+- Do not turn this into Vaiform-scale hardening prematurely.
+
+Create this file:
+
+docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md
+
+The markdown file should include:
+
+# WifeChat Production Safety Plan
+
+## Current Product Shape
+Brief summary of what WifeChat currently is, with file:line evidence.
+
+## Safety Principles
+Include these principles:
+- Solo-first, not surveillance-first
+- Repair over winning
+- Hedged interpretation, no mind-reading
+- Safety beats engagement
+- Private by default
+- No therapy/diagnosis claims
+- No manipulation, control, guilt-tripping, contempt, or partner-shaming
+
+## Verified Current Risks
+Use a table:
+- ID
+- Risk
+- Severity
+- Evidence
+- Notes
+
+## Revised Priority Plan
+Use this exact phase structure unless repo evidence suggests changing it:
+
+### Phase 1 — API Perimeter
+Goal:
+Acceptance criteria:
+Files likely touched:
+Verification commands:
+Do not include:
+
+### Phase 2 — Cost + Timeout Guardrails
+Goal:
+Acceptance criteria:
+Files likely touched:
+Verification commands:
+Do not include:
+
+### Phase 3 — Privacy-Safe Logging
+Goal:
+Acceptance criteria:
+Files likely touched:
+Verification commands:
+Do not include:
+
+### Phase 4 — Deterministic Safety Intercept
+Goal:
+Acceptance criteria:
+Files likely touched:
+Verification commands:
+Do not include:
+
+### Phase 5 — Frontend Trust + Privacy Copy
+Goal:
+Acceptance criteria:
+Files likely touched:
+Verification commands:
+Do not include:
+
+### Phase 6 — Test Harness + Regression Tests
+Goal:
+Acceptance criteria:
+Files likely touched:
+Verification commands:
+Do not include:
+
+### Phase 7 — Later, Only After Traction
+Include delayed items:
+- auth
+- saved history
+- per-user quotas
+- persistent quota store
+- Stripe
+- partner/couple mode
+- voice input/tone analysis
+- reminders
+- memory/personalization
+
+## Explicit Non-Goals Right Now
+List what we are intentionally not building yet and why.
+
+## Implementation Rules For Future Agents
+Include:
+- audit first with file:line evidence
+- one phase per PR/commit
+- no feature work mixed with safety hardening
+- no raw relationship content in logs
+- no generic /api/chat route resurrection
+- no saved history before auth/privacy controls
+- update this markdown file when phases are completed
+- after every implementation phase, re-audit the touched files
+
+## Manual QA Checklist
+Include concrete curl/browser checks for:
+- allowed CORS origin
+- blocked CORS origin
+- request ID header
+- normal coach response
+- body too large
+- rate limit
+- timeout behavior if testable
+- safety intercept
+- logs do not contain fake sensitive input
+- privacy copy appears in UI
+
+## Open Questions
+List unresolved questions that need human/product decision, such as:
+- Which production frontend origins should be allowed?
+- Will this deploy on Replit long-term or move elsewhere?
+- Which auth provider would be used later?
+- What should the exact privacy promise be?
+- Which countries’ crisis resources should appear first?
+
+After creating the markdown file:
+1. Print a concise summary of what you verified.
+2. List every file changed.
+3. Confirm that no behavior changes were made.
+4. Provide the exact command(s) you ran.
+5. If typecheck/lint was not run, explain why.
+6. Do not implement any fixes beyond the markdown plan.
