@@ -49,10 +49,10 @@ Key files:
 
 ### `artifacts/wife-chat-mobile` — Expo mobile app
 
-Expo Router app for the mobile WifeChat experience. Native iOS output is not
-committed today; generate it locally only when native work is explicitly in
-scope. The iOS keyboard extension architecture and prebuild policy live in
-`docs/IOS_KEYBOARD_EXTENSION_PLAN.md`.
+Expo Router app for the mobile WifeChat experience. Native iOS output is
+committed under `artifacts/wife-chat-mobile/ios` so the Xcode custom keyboard
+extension target can be versioned. The static keyboard scaffold and native
+maintenance policy live in `docs/IOS_KEYBOARD_EXTENSION_PLAN.md`.
 
 ### `artifacts/api-server` — Express API
 

@@ -14,7 +14,8 @@
       "backgroundColor": "#fefcfb"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ajrhea.wifechat"
     },
     "android": {},
     "web": {

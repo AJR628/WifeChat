@@ -1,18 +1,19 @@
 # iOS Keyboard Extension Plan
 
 Living architecture plan for the real WifeChat iOS custom keyboard extension.
-This document is the native path source of truth until an `ios/` project is
-generated and committed.
+This document is the native path source of truth for the committed Expo iOS
+project and static custom keyboard scaffold.
 
 ## Current Repo Evidence
 
 - The Expo mobile package is `@workspace/wife-chat-mobile` and starts through
   `expo-router/entry` (`artifacts/wife-chat-mobile/package.json:2-10`).
-- The current Expo config has only minimal iOS settings:
-  `ios.supportsTablet=false` (`artifacts/wife-chat-mobile/app.json:16-18`).
-  No app bundle identifier is committed yet.
-- There is no committed native project today: `artifacts/wife-chat-mobile/ios`
-  and `artifacts/wife-chat-mobile/android` were both absent during the audit.
+- The Expo config sets `ios.supportsTablet=false` and bundle identifier
+  `com.ajrhea.wifechat` (`artifacts/wife-chat-mobile/app.json`).
+- The native iOS project is committed under `artifacts/wife-chat-mobile/ios`.
+  Android native output remains uncommitted.
+- The committed keyboard extension target is `WifeChatKeyboard`, with Swift
+  entrypoint `artifacts/wife-chat-mobile/ios/WifeChatKeyboard/KeyboardViewController.swift`.
 - The current mobile API client sends `before-send` requests to the existing
   backend route only:
   `https://${EXPO_PUBLIC_DOMAIN}/api/coach/before-send`
@@ -49,10 +50,10 @@ Testing this path requires a generated native iOS project and either:
 
 ## Native Generation Policy
 
-There is no committed `ios/` folder right now, so do not commit generated
-native iOS output until the team explicitly accepts the maintenance cost. Once
-generated and committed, future Expo config changes may require native diffs,
-Xcode project maintenance, signing coordination, and App Store extension review.
+The generated iOS project is now committed because native keyboard extension
+work requires Xcode-managed targets. Future Expo config changes may require
+native diffs, Xcode project maintenance, signing coordination, and App Store
+extension review.
 
 Local generation commands:
 
@@ -83,13 +84,10 @@ changes. Do not run it over hand-edited native files without a review.
 
 ## Bundle IDs
 
-Final bundle IDs are not proven in this repo yet. Confirm them before running
-native generation for release.
+Current committed bundle IDs:
 
-Recommended shape:
-
-- Main app bundle ID: `com.wifechat.app` or the owner-approved App Store ID.
-- Keyboard extension bundle ID: `<main-app-bundle-id>.Keyboard`.
+- Main app bundle ID: `com.ajrhea.wifechat`.
+- Keyboard extension bundle ID: `com.ajrhea.wifechat.WifeChatKeyboard`.
 
 The extension bundle identifier must be unique, nested under the app bundle ID
 by convention, and reflected consistently in Xcode signing, provisioning
@@ -158,29 +156,28 @@ Concrete rules:
 
 ## Initial Native Scaffold Sequence
 
-Only start this after native generation is approved.
+Initial static scaffold status:
 
-1. Run `pnpm --filter @workspace/wife-chat-mobile prebuild:ios`.
-2. Open the generated workspace/project in Xcode.
-3. Set the main app bundle ID and signing team.
-4. Add a Custom Keyboard Extension target in Swift.
-5. Set the extension bundle ID to `<main-app-bundle-id>.Keyboard`.
-6. Add only static UI first:
+1. `pnpm --filter @workspace/wife-chat-mobile prebuild:ios` generated the iOS
+   project.
+2. The Xcode project is `artifacts/wife-chat-mobile/ios/WifeChat.xcodeproj`.
+3. The Custom Keyboard Extension target is `WifeChatKeyboard`.
+4. The first scaffold intentionally contains only static UI:
    - title: WifeChat
-   - status: Reply selected
-   - text box
-   - Warm / Direct / Short buttons
+   - privacy line: "Only text you type here is used."
+   - local draft text box
+   - Warm / Direct / Short controls
    - Generate button disabled or locally mocked
    - Insert button inserts hardcoded sample text
-7. Include native comments stating:
+5. Native comments state:
    - no thread reading
    - no auto-send
    - no live keylogging
    - no direct OpenAI calls
    - no secret storage
-8. Build and install from Xcode.
-9. Enable the keyboard in iOS Settings.
-10. Verify hardcoded Insert works in Messages before adding the API call.
+6. Build and install from Xcode.
+7. Enable the keyboard in iOS Settings.
+8. Verify hardcoded Insert works in Messages before adding the API call.
 
 ## API-Backed Reply Mode Plan
 
@@ -234,17 +231,17 @@ Before building Interpret:
 
 ## Verification Checklist
 
-Before native code is committed:
+Committed static scaffold status:
 
-- [ ] Repo owner approves committing generated `ios/` output.
-- [ ] Bundle IDs and Apple Team ID are confirmed.
-- [ ] Xcode project builds locally.
+- [x] Repo owner approved committing generated `ios/` output.
+- [x] Bundle IDs are committed.
+- [x] Keyboard target builds locally when built directly with signing disabled.
 - [ ] Keyboard target appears in iOS Settings.
 - [ ] Keyboard opens in Messages and at least one third-party text field.
 - [ ] Static Insert inserts hardcoded sample text.
-- [ ] No API call exists in the first scaffold unless static build is proven.
-- [ ] Native code contains no OpenAI key, passcode, or backend secret.
-- [ ] Native code comments document no thread reading, no auto-send, and no
+- [x] No API call exists in the first scaffold.
+- [x] Native code contains no OpenAI key, passcode, or backend secret.
+- [x] Native code comments document no thread reading, no auto-send, and no
       live keylogging.
 
 Before API-backed V1 ships:
