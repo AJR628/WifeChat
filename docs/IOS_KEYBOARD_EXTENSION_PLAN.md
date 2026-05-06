@@ -2,7 +2,9 @@
 
 Living architecture plan for the real WifeChat iOS custom keyboard extension.
 This document is the native path source of truth for the committed Expo iOS
-project and static custom keyboard scaffold.
+project and static custom keyboard scaffold. The current static milestone is a
+one-box local preview keyboard with custom in-extension keys. API-backed
+Generate remains deferred.
 
 ## Current Repo Evidence
 
@@ -14,6 +16,9 @@ project and static custom keyboard scaffold.
   Android native output remains uncommitted.
 - The committed keyboard extension target is `WifeChatKeyboard`, with Swift
   entrypoint `artifacts/wife-chat-mobile/ios/WifeChatKeyboard/KeyboardViewController.swift`.
+- The current keyboard scaffold is static/local only: one editable WifeChat
+  message box, Warm / Direct / Short tone control, deterministic local preview
+  generation, undo, Insert, and custom QWERTY keys. It does not call the backend.
 - The current mobile API client sends `before-send` requests to the existing
   backend route only:
   `https://${EXPO_PUBLIC_DOMAIN}/api/coach/before-send`
@@ -99,6 +104,9 @@ An iOS keyboard extension can be installed without full access, but network
 access for Generate requires `RequestsOpenAccess` in the keyboard extension
 `Info.plist` and the user enabling "Allow Full Access" in iOS Settings.
 
+The current static/local keyboard milestone keeps `RequestsOpenAccess=false`
+and does not require Allow Full Access.
+
 Production implication:
 
 - Without full access, V1 should still let the user type locally and insert
@@ -112,6 +120,9 @@ Production implication:
 
 "Only text typed or pasted into the keyboard is sent after Generate."
 
+For the current static/local milestone, Generate does not send text anywhere.
+It only replaces the in-memory message box with a deterministic local preview.
+
 Concrete rules:
 
 - Do not send text as the user types.
@@ -124,6 +135,9 @@ Concrete rules:
   host app.
 
 ## V1 Scope
+
+This is the intended network-backed V1 flow after static keyboard UX
+verification, not the current static milestone:
 
 1. User enables the WifeChat keyboard in iOS Settings.
 2. User opens the WifeChat keyboard inside Messages, WhatsApp, or another text
@@ -178,6 +192,30 @@ Initial static scaffold status:
 6. Build and install from Xcode.
 7. Enable the keyboard in iOS Settings.
 8. Verify hardcoded Insert works in Messages before adding the API call.
+
+## Current Static Keyboard V2 Milestone
+
+The current native keyboard implementation is still static/local and exists to
+prove the usable keyboard loop before backend wiring:
+
+1. The user types rough text into the WifeChat message box using custom
+   in-extension QWERTY keys, paste, or hardware keyboard input.
+2. The keyboard keeps typed text in memory only and synchronizes the `UITextView`
+   with the in-memory current text.
+3. Letter, Space, Delete, Return, and Shift mutate only WifeChat's current
+   in-memory text. Delete does not mutate host app text.
+4. Warm / Direct / Short selects the local preview style.
+5. Generate is deterministic local scaffolding through
+   `mockGenerateLocalPreview`. It does not use `URLSession`, an API client, a
+   backend URL, or provider credentials.
+6. Generate saves the exact original draft in memory, replaces the same message
+   box with the local preview, and shows Undo.
+7. Undo restores the exact original draft from memory.
+8. Insert is the only path that writes to the host field, via
+   `textDocumentProxy.insertText(currentText)`. It does not auto-send and does
+   not clear the draft.
+9. The globe key calls `advanceToNextInputMode()` and does not mutate WifeChat
+   text or host text.
 
 ## API-Backed Reply Mode Plan
 
@@ -235,10 +273,16 @@ Committed static scaffold status:
 
 - [x] Repo owner approved committing generated `ios/` output.
 - [x] Bundle IDs are committed.
-- [x] Keyboard target builds locally when built directly with signing disabled.
+- [x] App and keyboard target build locally from the workspace with signing
+      disabled.
 - [ ] Keyboard target appears in iOS Settings.
 - [ ] Keyboard opens in Messages and at least one third-party text field.
-- [ ] Static Insert inserts hardcoded sample text.
+- [ ] Static custom keys append to the WifeChat message box.
+- [ ] Static Generate replaces the message box with a local preview.
+- [ ] Static Undo restores the original draft.
+- [ ] Static Insert inserts the current WifeChat message text.
+- [ ] Static Delete does not delete host app text.
+- [ ] Globe/Next Keyboard switches input modes.
 - [x] No API call exists in the first scaffold.
 - [x] Native code contains no OpenAI key, passcode, or backend secret.
 - [x] Native code comments document no thread reading, no auto-send, and no
