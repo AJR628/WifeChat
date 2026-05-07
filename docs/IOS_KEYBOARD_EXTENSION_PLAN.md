@@ -16,9 +16,10 @@ Generate remains deferred.
   Android native output remains uncommitted.
 - The committed keyboard extension target is `WifeChatKeyboard`, with Swift
   entrypoint `artifacts/wife-chat-mobile/ios/WifeChatKeyboard/KeyboardViewController.swift`.
-- The current keyboard scaffold is static/local only: one editable WifeChat
-  message box, Warm / Direct / Short tone control, deterministic local preview
-  generation, undo, Insert, and custom QWERTY keys. It does not call the backend.
+- The current keyboard scaffold is local only: one editable WifeChat message
+  box, Warm / Direct / Short tone control, an on-device Foundation Models
+  runtime probe with deterministic local fallback, undo, Insert, and custom
+  QWERTY keys. It does not call the backend.
 - The current mobile API client sends `before-send` requests to the existing
   backend route only:
   `https://${EXPO_PUBLIC_DOMAIN}/api/coach/before-send`
@@ -120,8 +121,9 @@ Production implication:
 
 "Only text typed or pasted into the keyboard is sent after Generate."
 
-For the current static/local milestone, Generate does not send text anywhere.
-It only replaces the in-memory message box with a deterministic local preview.
+For the current local milestone, Generate does not send text anywhere. It tries
+on-device Foundation Models generation when available, otherwise it replaces the
+in-memory message box with a deterministic local preview.
 
 Concrete rules:
 
@@ -205,9 +207,10 @@ prove the usable keyboard loop before backend wiring:
 3. Letter, Space, Delete, Return, and Shift mutate only WifeChat's current
    in-memory text. Delete does not mutate host app text.
 4. Warm / Direct / Short selects the local preview style.
-5. Generate is deterministic local scaffolding through
-   `mockGenerateLocalPreview`. It does not use `URLSession`, an API client, a
-   backend URL, or provider credentials.
+5. Generate first tries the local Foundation Models runtime probe and falls back
+   to deterministic local scaffolding through `mockGenerateLocalPreview` when
+   Foundation Models is unavailable, errors, times out, or is cancelled. It does
+   not use `URLSession`, an API client, a backend URL, or provider credentials.
 6. Generate saves the exact original draft in memory, replaces the same message
    box with the local preview, and shows Undo.
 7. Undo restores the exact original draft from memory.
@@ -216,6 +219,38 @@ prove the usable keyboard loop before backend wiring:
    not clear the draft.
 9. The globe key calls `advanceToNextInputMode()` and does not mutate WifeChat
    text or host text.
+
+## Foundation Models Runtime Spike
+
+The current branch contains a minimal local Foundation Models probe inside the
+existing `WifeChatKeyboard` target. This is still a research path, not a
+product decision to remove the backend.
+
+Current status:
+
+1. `LocalFoundationModelRewriteService` imports `FoundationModels` only when the
+   SDK can provide it.
+2. The probe is guarded to iOS 26+.
+3. The probe checks `SystemLanguageModel.default.availability`.
+4. The probe uses `LanguageModelSession` only after the user taps Generate.
+5. The prompt is tone-specific for Warm, Direct, and Short, and asks the model
+   to return only the rewritten text.
+6. Unsupported OS, ineligible device, Apple Intelligence disabled, model not
+   ready, generation errors, timeout, and cancellation all fall back to the
+   deterministic local preview.
+7. `RequestsOpenAccess` remains false.
+8. No backend, network, App Groups, persistence, or logging path is introduced.
+
+Physical runtime status:
+
+- Compile and simulator builds are verified.
+- Runtime generation was manually verified by AJ on a physical iPhone on
+  May 6, 2026: the WifeChat keyboard showed the new generator setup and returned
+  different generated messages from the keyboard.
+- The manual verification did not require enabling `RequestsOpenAccess`; the
+  keyboard remains configured with `RequestsOpenAccess=false`.
+- Do not claim backendless V1 as final until product explicitly accepts the
+  device coverage, safety, quality, and fallback tradeoffs.
 
 ## API-Backed Reply Mode Plan
 

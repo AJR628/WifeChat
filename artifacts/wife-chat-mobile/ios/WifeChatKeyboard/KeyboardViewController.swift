@@ -39,13 +39,15 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
     private var selectedTone: Tone = .warm
     private var mode: Mode = .draft
     private var isShiftEnabled = true
+    private var isGenerating = false
 
-    // Static keyboard UX scaffold only:
+    // Local keyboard generation path:
     // - no host app thread/content reading
     // - no auto-send behavior
     // - no live keylogging or network calls while typing
     // - no direct OpenAI calls, backend secrets, or passcodes in the extension
     // - no persistence of draft text
+    // - generation only after the user taps Generate
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -322,14 +324,14 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
     private func updateControls() {
         let hasText = !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-        modeLabel.text = mode == .generated ? "Ready" : "Draft"
+        modeLabel.text = isGenerating ? "Generating" : mode == .generated ? "Ready" : "Draft"
         undoButton.isHidden = mode != .generated || originalDraftBeforeGeneration == nil
-        toneControl.isEnabled = mode == .draft
-        primaryActionButton.isEnabled = hasText
+        toneControl.isEnabled = mode == .draft && !isGenerating
+        primaryActionButton.isEnabled = hasText && !isGenerating
 
         switch mode {
         case .draft:
-            primaryActionButton.setTitle("Generate", for: .normal)
+            primaryActionButton.setTitle(isGenerating ? "Working" : "Generate", for: .normal)
             primaryActionButton.accessibilityLabel = "Generate local preview"
         case .generated:
             primaryActionButton.setTitle("Insert", for: .normal)
@@ -425,11 +427,28 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
     }
 
     private func generateLocalPreview() {
-        guard !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let source = currentText
+        guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        originalDraftBeforeGeneration = currentText
-        mode = .generated
-        setCurrentText(mockGenerateLocalPreview(for: selectedTone, source: currentText))
+        isGenerating = true
+        updateControls()
+
+        Task { @MainActor in
+            let generatedText = await LocalFoundationModelRewriteService.rewrite(
+                source: source,
+                tone: localRewriteTone(for: selectedTone)
+            ) ?? mockGenerateLocalPreview(for: selectedTone, source: source)
+
+            isGenerating = false
+            guard mode == .draft, currentText == source else {
+                updateControls()
+                return
+            }
+
+            originalDraftBeforeGeneration = source
+            mode = .generated
+            setCurrentText(generatedText)
+        }
     }
 
     @objc private func restoreOriginalDraft() {
@@ -461,6 +480,17 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
             return "I want to be clear and respectful: \(trimmedSource)"
         case .short:
             return "Can we talk about this calmly? \(trimmedSource)"
+        }
+    }
+
+    private func localRewriteTone(for tone: Tone) -> LocalRewriteTone {
+        switch tone {
+        case .warm:
+            return .warm
+        case .direct:
+            return .direct
+        case .short:
+            return .short
         }
     }
 
