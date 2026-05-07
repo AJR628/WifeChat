@@ -234,7 +234,9 @@ Current status:
 3. The probe checks `SystemLanguageModel.default.availability`.
 4. The probe uses `LanguageModelSession` only after the user taps Generate.
 5. The prompt is tone-specific for Warm, Direct, and Short, and asks the model
-   to return only the rewritten text.
+   to return only the rewritten text. The prompt is broad communication-focused:
+   romantic, family, friend, work, client, and general messages should preserve
+   every essential point without adding new facts or emotional claims.
 6. Unsupported OS, ineligible device, Apple Intelligence disabled, model not
    ready, generation errors, timeout, and cancellation all fall back to the
    deterministic local preview.
