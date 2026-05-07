@@ -200,25 +200,30 @@ Initial static scaffold status:
 The current native keyboard implementation is still static/local and exists to
 prove the usable keyboard loop before backend wiring:
 
-1. The user types rough text into the WifeChat message box using custom
+1. The user types rough text into the custom keyboard message box using
    in-extension QWERTY keys, paste, or hardware keyboard input.
 2. The keyboard keeps typed text in memory only and synchronizes the `UITextView`
    with the in-memory current text.
-3. Letter, Space, Delete, Return, and Shift mutate only WifeChat's current
-   in-memory text. Delete does not mutate host app text.
+3. Letter, Space, Delete, Return, and Shift mutate only the keyboard's current
+   in-memory text. Delete does not mutate host app text. Custom key and action
+   taps use subtle UIKit haptic feedback; no audio clicks are added.
 4. Warm / Direct / Short selects the local preview style.
-5. Generate first tries the local Foundation Models runtime probe and falls back
+5. Letter keys can show a transient local key preview popup; Space and Return
+   can autocorrect the previous in-memory word using deterministic local
+   corrections and conservative local spell-checking.
+6. Generate first tries the local Foundation Models runtime probe and falls back
    to deterministic local scaffolding through `mockGenerateLocalPreview` when
    Foundation Models is unavailable, errors, times out, or is cancelled. It does
    not use `URLSession`, an API client, a backend URL, or provider credentials.
-6. Generate saves the exact original draft in memory, replaces the same message
+7. Generate saves the exact original draft in memory, replaces the same message
    box with the local preview, and shows Undo.
-7. Undo restores the exact original draft from memory.
-8. Insert is the only path that writes to the host field, via
+8. Undo restores the exact original draft from memory, or reverts the most
+   recent in-memory autocorrection when applicable.
+9. Insert is the only path that writes to the host field, via
    `textDocumentProxy.insertText(currentText)`. It does not auto-send and does
    not clear the draft.
-9. The globe key calls `advanceToNextInputMode()` and does not mutate WifeChat
-   text or host text.
+10. The globe key calls `advanceToNextInputMode()` and does not mutate keyboard
+    text or host text.
 
 ## Foundation Models Runtime Spike
 

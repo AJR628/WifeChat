@@ -20,6 +20,14 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
         case generated
     }
 
+    private struct AutocorrectEvent {
+        let beforeText: String
+        let afterText: String
+        let originalWord: String
+        let correctedWord: String
+        let separator: String
+    }
+
     private let titleLabel = UILabel()
     private let modeLabel = UILabel()
     private let privacyLabel = UILabel()
@@ -29,10 +37,18 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
     private let primaryActionButton = UIButton(type: .system)
     private let nextKeyboardButton = UIButton(type: .system)
     private let shiftButton = UIButton(type: .system)
+    private let keyFeedback = UIImpactFeedbackGenerator(style: .light)
+    private let actionFeedback = UIImpactFeedbackGenerator(style: .medium)
+    private let textChecker = UITextChecker()
 
     private var letterButtons: [(button: UIButton, letter: String)] = []
     private var allKeyButtons: [UIButton] = []
     private var isSyncingTextView = false
+    private var keyPreviewView: UIView?
+    private let keyPreviewLabel = UILabel()
+    private var lexiconReplacements: [String: String] = [:]
+    private var lexiconKnownWords: Set<String> = []
+    private var lastAutocorrectEvent: AutocorrectEvent?
 
     private var currentText = ""
     private var originalDraftBeforeGeneration: String?
@@ -54,6 +70,9 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
         view.backgroundColor = .systemBackground
         configureViews()
         layoutViews()
+        prepareFeedbackGenerators()
+        configureKeyPreview()
+        loadSupplementaryLexicon()
         updateControls()
         applyCurrentAppearance()
     }
@@ -166,7 +185,7 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
             makeUtilityRow(),
         ])
         keyboardStack.axis = .vertical
-        keyboardStack.spacing = 6
+        keyboardStack.spacing = 7
 
         let rootStack = UIStackView(arrangedSubviews: [
             assistantStack,
@@ -178,7 +197,7 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
 
         view.addSubview(rootStack)
 
-        let heightConstraint = view.heightAnchor.constraint(greaterThanOrEqualToConstant: 372)
+        let heightConstraint = view.heightAnchor.constraint(greaterThanOrEqualToConstant: 408)
         heightConstraint.priority = .required
 
         NSLayoutConstraint.activate([
@@ -188,7 +207,7 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
             rootStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
             rootStack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -8),
 
-            messageContainer.heightAnchor.constraint(equalToConstant: 82),
+            messageContainer.heightAnchor.constraint(equalToConstant: 90),
             messageTextView.topAnchor.constraint(equalTo: messageContainer.topAnchor),
             messageTextView.leadingAnchor.constraint(equalTo: messageContainer.leadingAnchor),
             messageTextView.trailingAnchor.constraint(equalTo: messageContainer.trailingAnchor),
@@ -198,8 +217,8 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
             undoButton.widthAnchor.constraint(equalToConstant: 32),
             undoButton.heightAnchor.constraint(equalToConstant: 32),
 
-            toneActionRow.heightAnchor.constraint(equalToConstant: 40),
-            primaryActionButton.widthAnchor.constraint(equalToConstant: 104),
+            toneActionRow.heightAnchor.constraint(equalToConstant: 42),
+            primaryActionButton.widthAnchor.constraint(equalToConstant: 112),
         ])
     }
 
@@ -238,10 +257,10 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
             [nextKeyboardButton, numbersButton, spaceButton, returnButton],
             distribution: .fill
         )
-        nextKeyboardButton.widthAnchor.constraint(equalToConstant: 48).isActive = true
-        numbersButton.widthAnchor.constraint(equalToConstant: 48).isActive = true
-        spaceButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 132).isActive = true
-        returnButton.widthAnchor.constraint(equalToConstant: 76).isActive = true
+        nextKeyboardButton.widthAnchor.constraint(equalToConstant: 52).isActive = true
+        numbersButton.widthAnchor.constraint(equalToConstant: 52).isActive = true
+        spaceButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 144).isActive = true
+        returnButton.widthAnchor.constraint(equalToConstant: 84).isActive = true
         return row
     }
 
@@ -253,10 +272,10 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
         row.axis = .horizontal
         row.alignment = .fill
         row.distribution = distribution
-        row.spacing = 4
+        row.spacing = 5
 
         buttons.forEach { button in
-            button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 49).isActive = true
         }
 
         return row
@@ -264,9 +283,19 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
 
     private func makeLetterButton(letter: String) -> UIButton {
         let button = makeKeyButton(title: letter, accessibilityLabel: letter)
+        button.addAction(UIAction { [weak self, weak button] _ in
+            guard let self, let button else { return }
+            self.showKeyPreview(for: button, text: self.displayedLetter(for: letter))
+        }, for: .touchDown)
         button.addAction(UIAction { [weak self] _ in
             self?.insertLetter(letter)
         }, for: .touchUpInside)
+        let hideAction = UIAction { [weak self] _ in
+            self?.hideKeyPreview()
+        }
+        button.addAction(hideAction, for: .touchUpOutside)
+        button.addAction(hideAction, for: .touchCancel)
+        button.addAction(hideAction, for: .touchDragExit)
         letterButtons.append((button, letter))
         return button
     }
@@ -291,6 +320,92 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
         button.layer.cornerRadius = 6
         allKeyButtons.append(button)
     }
+
+    private func prepareFeedbackGenerators() {
+        keyFeedback.prepare()
+        actionFeedback.prepare()
+    }
+
+    private func playKeyFeedback() {
+        keyFeedback.impactOccurred(intensity: 0.35)
+        keyFeedback.prepare()
+    }
+
+    private func playActionFeedback() {
+        actionFeedback.impactOccurred(intensity: 0.55)
+        actionFeedback.prepare()
+    }
+
+    // MARK: - Key preview
+
+    private func configureKeyPreview() {
+        keyPreviewLabel.textAlignment = .center
+        keyPreviewLabel.font = .systemFont(ofSize: 31, weight: .regular)
+        keyPreviewLabel.textColor = .label
+
+        let previewView = UIView()
+        previewView.backgroundColor = .secondarySystemBackground
+        previewView.layer.cornerRadius = 9
+        previewView.layer.borderWidth = 1
+        previewView.layer.borderColor = UIColor.separator.cgColor
+        previewView.layer.shadowColor = UIColor.black.cgColor
+        previewView.layer.shadowOpacity = 0.15
+        previewView.layer.shadowRadius = 4
+        previewView.layer.shadowOffset = CGSize(width: 0, height: 2)
+        previewView.isHidden = true
+        previewView.isUserInteractionEnabled = false
+        previewView.addSubview(keyPreviewLabel)
+
+        keyPreviewLabel.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            keyPreviewLabel.leadingAnchor.constraint(equalTo: previewView.leadingAnchor),
+            keyPreviewLabel.trailingAnchor.constraint(equalTo: previewView.trailingAnchor),
+            keyPreviewLabel.topAnchor.constraint(equalTo: previewView.topAnchor),
+            keyPreviewLabel.bottomAnchor.constraint(equalTo: previewView.bottomAnchor),
+        ])
+
+        view.addSubview(previewView)
+        keyPreviewView = previewView
+    }
+
+    private func showKeyPreview(for button: UIButton, text: String) {
+        guard let keyPreviewView else { return }
+
+        keyPreviewLabel.text = text
+        keyPreviewLabel.textColor = button.titleColor(for: .normal) ?? .label
+        keyPreviewView.backgroundColor = button.backgroundColor ?? .secondarySystemBackground
+        keyPreviewView.layer.borderColor = UIColor.separator.cgColor
+
+        let buttonFrame = button.convert(button.bounds, to: view)
+        let previewWidth: CGFloat = 46
+        let previewHeight: CGFloat = 58
+        let horizontalPadding: CGFloat = 4
+        let verticalOffset: CGFloat = 8
+        let proposedX = buttonFrame.midX - (previewWidth / 2)
+        let minX = horizontalPadding
+        let maxX = max(minX, view.bounds.width - previewWidth - horizontalPadding)
+        let xPosition = min(max(proposedX, minX), maxX)
+        let yPosition = max(0, buttonFrame.minY - previewHeight - verticalOffset)
+
+        keyPreviewView.frame = CGRect(
+            x: xPosition,
+            y: yPosition,
+            width: previewWidth,
+            height: previewHeight
+        )
+        keyPreviewView.isHidden = false
+        view.bringSubviewToFront(keyPreviewView)
+    }
+
+    private func hideKeyPreview() {
+        keyPreviewView?.isHidden = true
+    }
+
+    private func displayedLetter(for letter: String) -> String {
+        isShiftEnabled ? letter.uppercased() : letter.lowercased()
+    }
+
+    // MARK: - Appearance and state
 
     private func applyCurrentAppearance() {
         let isDark = textDocumentProxy.keyboardAppearance == .dark
@@ -317,15 +432,21 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
             button.setTitleColor(.secondaryLabel, for: .disabled)
         }
 
+        keyPreviewLabel.textColor = textColor
+        keyPreviewView?.backgroundColor = keyBackgroundColor
+        keyPreviewView?.layer.borderColor = UIColor.separator.cgColor
+
         updatePrimaryActionAppearance()
         updateShiftState()
     }
 
     private func updateControls() {
         let hasText = !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let canUndoAutocorrect = mode == .draft
+            && lastAutocorrectEvent?.afterText == currentText
 
         modeLabel.text = isGenerating ? "Generating" : mode == .generated ? "Ready" : "Draft"
-        undoButton.isHidden = mode != .generated || originalDraftBeforeGeneration == nil
+        undoButton.isHidden = (mode != .generated || originalDraftBeforeGeneration == nil) && !canUndoAutocorrect
         toneControl.isEnabled = mode == .draft && !isGenerating
         primaryActionButton.isEnabled = hasText && !isGenerating
 
@@ -374,11 +495,15 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
 
     func textViewDidChange(_ textView: UITextView) {
         guard !isSyncingTextView else { return }
+        clearLastAutocorrectEvent()
         currentText = textView.text ?? ""
         updateControls()
     }
 
     private func insertLetter(_ letter: String) {
+        clearLastAutocorrectEvent()
+        hideKeyPreview()
+        playKeyFeedback()
         let nextLetter = isShiftEnabled ? letter.uppercased() : letter.lowercased()
         setCurrentText(currentText + nextLetter)
         if isShiftEnabled {
@@ -388,25 +513,38 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
     }
 
     @objc private func insertSpace() {
-        setCurrentText(currentText + " ")
+        playKeyFeedback()
+        setCurrentText(autocorrectedTextBeforeAdding(separator: " "))
     }
 
     @objc private func insertReturn() {
-        setCurrentText(currentText + "\n")
+        playKeyFeedback()
+        setCurrentText(autocorrectedTextBeforeAdding(separator: "\n"))
     }
 
     @objc private func deleteCharacter() {
         guard !currentText.isEmpty else { return }
+        playKeyFeedback()
+
+        if let lastAutocorrectEvent, currentText == lastAutocorrectEvent.afterText {
+            clearLastAutocorrectEvent()
+            setCurrentText(lastAutocorrectEvent.beforeText)
+            return
+        }
+
+        clearLastAutocorrectEvent()
         currentText.removeLast()
         setCurrentText(currentText)
     }
 
     @objc private func toggleShift() {
+        playKeyFeedback()
         isShiftEnabled.toggle()
         updateControls()
     }
 
     @objc private func toneChanged() {
+        playKeyFeedback()
         switch toneControl.selectedSegmentIndex {
         case 1:
             selectedTone = .direct
@@ -418,6 +556,7 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
     }
 
     @objc private func handlePrimaryAction() {
+        playActionFeedback()
         switch mode {
         case .draft:
             generateLocalPreview()
@@ -430,6 +569,7 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
         let source = currentText
         guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
+        clearLastAutocorrectEvent()
         isGenerating = true
         updateControls()
 
@@ -447,25 +587,36 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
 
             originalDraftBeforeGeneration = source
             mode = .generated
+            clearLastAutocorrectEvent()
             setCurrentText(generatedText)
         }
     }
 
     @objc private func restoreOriginalDraft() {
-        guard let originalDraft = originalDraftBeforeGeneration else { return }
+        playActionFeedback()
 
-        originalDraftBeforeGeneration = nil
-        mode = .draft
-        setCurrentText(originalDraft)
+        if let originalDraft = originalDraftBeforeGeneration {
+            clearLastAutocorrectEvent()
+            originalDraftBeforeGeneration = nil
+            mode = .draft
+            setCurrentText(originalDraft)
+            return
+        }
+
+        guard let lastAutocorrectEvent, currentText == lastAutocorrectEvent.afterText else { return }
+        clearLastAutocorrectEvent()
+        setCurrentText(lastAutocorrectEvent.beforeText)
     }
 
     private func insertCurrentMessage() {
         guard !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
+        clearLastAutocorrectEvent()
         textDocumentProxy.insertText(currentText)
     }
 
     @objc private func goToNextKeyboard() {
+        playKeyFeedback()
         advanceToNextInputMode()
     }
 
@@ -481,6 +632,216 @@ class KeyboardViewController: UIInputViewController, UITextViewDelegate {
         case .short:
             return "Can we talk about this calmly? \(trimmedSource)"
         }
+    }
+
+    // MARK: - Autocorrect
+
+    private func loadSupplementaryLexicon() {
+        requestSupplementaryLexicon { [weak self] lexicon in
+            var replacements: [String: String] = [:]
+            var knownWords = Set<String>()
+
+            lexicon.entries.forEach { entry in
+                let userInput = entry.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                let documentText = entry.documentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !userInput.isEmpty, !documentText.isEmpty else { return }
+
+                let userInputKey = userInput.lowercased()
+                knownWords.insert(userInputKey)
+                knownWords.insert(documentText.lowercased())
+
+                if userInputKey != documentText.lowercased() {
+                    replacements[userInputKey] = documentText
+                }
+            }
+
+            self?.lexiconReplacements = replacements
+            self?.lexiconKnownWords = knownWords
+        }
+    }
+
+    private func autocorrectedTextBeforeAdding(separator: String) -> String {
+        let textBeforeSeparator = currentText
+        let textWithOriginalSeparator = textBeforeSeparator + separator
+
+        guard let wordRange = lastWordRange(in: textBeforeSeparator) else {
+            clearLastAutocorrectEvent()
+            return textWithOriginalSeparator
+        }
+
+        let originalWord = String(textBeforeSeparator[wordRange])
+        guard let correctedWord = correctionCandidate(for: originalWord) else {
+            clearLastAutocorrectEvent()
+            return textWithOriginalSeparator
+        }
+
+        let correctedText = String(textBeforeSeparator[..<wordRange.lowerBound])
+            + correctedWord
+            + String(textBeforeSeparator[wordRange.upperBound...])
+            + separator
+
+        guard correctedText != textWithOriginalSeparator else {
+            clearLastAutocorrectEvent()
+            return textWithOriginalSeparator
+        }
+
+        lastAutocorrectEvent = AutocorrectEvent(
+            beforeText: textWithOriginalSeparator,
+            afterText: correctedText,
+            originalWord: originalWord,
+            correctedWord: correctedWord,
+            separator: separator
+        )
+        return correctedText
+    }
+
+    private func lastWordRange(in text: String) -> Range<String.Index>? {
+        guard let lastCharacter = text.last, lastCharacter.isLetter || lastCharacter == "'" else {
+            return nil
+        }
+
+        var startIndex = text.endIndex
+        while startIndex > text.startIndex {
+            let previousIndex = text.index(before: startIndex)
+            let character = text[previousIndex]
+            guard character.isLetter || character == "'" else { break }
+            startIndex = previousIndex
+        }
+
+        guard startIndex < text.endIndex else { return nil }
+        return startIndex..<text.endIndex
+    }
+
+    private func correctionCandidate(for word: String) -> String? {
+        let lowercasedWord = word.lowercased()
+
+        if let fallbackCorrection = deterministicCorrection(for: lowercasedWord) {
+            return preserveCapitalization(original: word, candidate: fallbackCorrection)
+        }
+
+        if let lexiconReplacement = lexiconReplacements[lowercasedWord],
+           isAcceptableReplacement(lexiconReplacement, for: word) {
+            return preserveCapitalization(original: word, candidate: lexiconReplacement)
+        }
+
+        guard shouldAttemptTextCheckerCorrection(for: word) else { return nil }
+
+        let language = textCheckerLanguage()
+        let nsWord = word as NSString
+        let fullRange = NSRange(location: 0, length: nsWord.length)
+        let misspelledRange = textChecker.rangeOfMisspelledWord(
+            in: word,
+            range: fullRange,
+            startingAt: 0,
+            wrap: false,
+            language: language
+        )
+
+        guard misspelledRange.location != NSNotFound,
+              let guesses = textChecker.guesses(forWordRange: misspelledRange, in: word, language: language),
+              let firstGuess = guesses.first,
+              isAcceptableReplacement(firstGuess, for: word) else {
+            return nil
+        }
+
+        return preserveCapitalization(original: word, candidate: firstGuess)
+    }
+
+    private func deterministicCorrection(for lowercasedWord: String) -> String? {
+        [
+            "teh": "the",
+            "dont": "don't",
+            "im": "I'm",
+            "ive": "I've",
+            "doesnt": "doesn't",
+            "didnt": "didn't",
+            "wont": "won't",
+            "cant": "can't",
+            "youre": "you're",
+            "thats": "that's",
+            "i": "I",
+        ][lowercasedWord]
+    }
+
+    private func shouldAttemptTextCheckerCorrection(for word: String) -> Bool {
+        let lowercasedWord = word.lowercased()
+        guard word == lowercasedWord else { return false }
+        guard word.count >= 3 else { return false }
+        guard !lexiconKnownWords.contains(lowercasedWord) else { return false }
+        return isPlainAlphabeticWord(word)
+    }
+
+    private func isAcceptableReplacement(_ candidate: String, for originalWord: String) -> Bool {
+        let trimmedCandidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCandidate.isEmpty else { return false }
+        guard trimmedCandidate == candidate else { return false }
+        guard trimmedCandidate.lowercased() != originalWord.lowercased() else { return false }
+        guard !trimmedCandidate.contains(where: { $0.isWhitespace }) else { return false }
+        guard !looksLikePhraseOrStrangePunctuation(trimmedCandidate) else { return false }
+        guard trimmedCandidate.count <= originalWord.count + 4 else { return false }
+
+        let maximumEditDistance = max(2, originalWord.count / 3)
+        return editDistance(
+            between: originalWord.lowercased(),
+            and: trimmedCandidate.lowercased()
+        ) <= maximumEditDistance
+    }
+
+    private func looksLikePhraseOrStrangePunctuation(_ text: String) -> Bool {
+        let apostrophe: UnicodeScalar = "'"
+        let hyphen: UnicodeScalar = "-"
+
+        return text.unicodeScalars.contains { scalar in
+            !CharacterSet.letters.contains(scalar)
+                && scalar != apostrophe
+                && scalar != hyphen
+        }
+    }
+
+    private func isPlainAlphabeticWord(_ word: String) -> Bool {
+        word.unicodeScalars.allSatisfy { CharacterSet.letters.contains($0) }
+    }
+
+    private func preserveCapitalization(original: String, candidate: String) -> String {
+        guard let firstOriginal = original.first else { return candidate }
+        guard firstOriginal.isUppercase else { return candidate }
+        guard original.dropFirst().allSatisfy({ $0.isLowercase }) else { return candidate }
+        return candidate.prefix(1).uppercased() + candidate.dropFirst()
+    }
+
+    private func textCheckerLanguage() -> String {
+        UITextChecker.availableLanguages.first { language in
+            language == "en_US" || language == "en-US"
+        } ?? UITextChecker.availableLanguages.first { language in
+            language.hasPrefix("en")
+        } ?? "en_US"
+    }
+
+    private func editDistance(between lhs: String, and rhs: String) -> Int {
+        let lhsCharacters = Array(lhs)
+        let rhsCharacters = Array(rhs)
+        var previousRow = Array(0...rhsCharacters.count)
+
+        for lhsIndex in 1...lhsCharacters.count {
+            var currentRow = [lhsIndex]
+
+            for rhsIndex in 1...rhsCharacters.count {
+                let substitutionCost = lhsCharacters[lhsIndex - 1] == rhsCharacters[rhsIndex - 1] ? 0 : 1
+                currentRow.append(min(
+                    previousRow[rhsIndex] + 1,
+                    currentRow[rhsIndex - 1] + 1,
+                    previousRow[rhsIndex - 1] + substitutionCost
+                ))
+            }
+
+            previousRow = currentRow
+        }
+
+        return previousRow.last ?? 0
+    }
+
+    private func clearLastAutocorrectEvent() {
+        lastAutocorrectEvent = nil
     }
 
     private func localRewriteTone(for tone: Tone) -> LocalRewriteTone {
