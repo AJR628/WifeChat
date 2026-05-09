@@ -1,0 +1,106 @@
+Implement WifeChat Phase 2B only: existing coach tools as Loop actions.
+
+Required reading first:
+- README.md
+- replit.md
+- docs/PRODUCT_SSOT.md
+- docs/LOOP_PRODUCT_BUILD_SPEC.md
+- artifacts/wife-chat-mobile/lib/loopModels.ts
+- artifacts/wife-chat-mobile/lib/storage.ts
+- artifacts/wife-chat-mobile/lib/loopStore.ts
+- artifacts/wife-chat-mobile/lib/coach.ts
+- artifacts/wife-chat-mobile/constants/tools.ts
+- artifacts/wife-chat-mobile/app/coach/[tool].tsx
+- artifacts/wife-chat-mobile/app/loop/[id].tsx
+
+Goal:
+Allow a user to launch existing supported coach tools from a Loop detail screen and save the resulting local conversation/artifact back into that Loop.
+
+Scope:
+1. Update `app/loop/[id].tsx` to show Loop action cards for:
+   - before-send
+   - repair
+   - checkin
+
+2. Each action card should route to the existing coach screen with a `loopId` query param:
+   - `/coach/before-send?loopId=<id>`
+   - `/coach/repair?loopId=<id>`
+   - `/coach/checkin?loopId=<id>`
+
+3. Update `app/coach/[tool].tsx` to support two persistence modes:
+   - No `loopId`: preserve existing per-tool message storage exactly as today.
+   - With `loopId`: load messages from that Loop’s `messages` filtered by `sourceTool`.
+
+4. In Loop mode:
+   - Use the same existing `sendCoach(toolKey, text)` call.
+   - Do not change `lib/coach.ts`.
+   - Do not send Loop context or profile context to the API.
+   - On successful assistant reply:
+     - append user and assistant `LoopMessage` records to the Loop
+     - set `sourceTool` on both records
+     - append a `GeneratedArtifact` with:
+       - id
+       - loopId
+       - sourceTool
+       - createdAt
+       - title
+       - payload: `{ text: replyText }`
+       - saved: true
+   - On failed send:
+     - keep existing visible error behavior
+     - do not persist Loop messages or artifacts
+
+5. In Loop mode UI:
+   - show a small subtitle/badge that the coach is working inside the selected Loop
+   - include a back path to the Loop detail
+   - avoid generic chat framing
+   - keep “final sending is manual” assumptions intact
+
+6. Keep coming-soon tools disabled:
+   - planner stays disabled on mobile
+   - practice stays disabled
+   - Reality Check remains Phase 3
+
+Hard guardrails:
+- Do not implement Phase 2C.
+- Do not add Reality Check.
+- Do not change API routes.
+- Do not edit prompts.
+- Do not edit OpenAPI/codegen.
+- Do not edit generated clients.
+- Do not edit backend files.
+- Do not edit web app.
+- Do not edit native Swift/keyboard extension.
+- Do not edit package files or dependencies.
+- Do not change `artifacts/wife-chat-mobile/lib/coach.ts`.
+- Do not add `/api/chat`.
+- Do not add `/api/coach/session`.
+- Do not add analytics/logging.
+- Do not add cloud sync.
+- Do not add direct OpenAI usage.
+- Do not add secrets.
+- Do not read host-app messages.
+- Do not auto-send anything.
+
+Verification:
+Run:
+- `corepack pnpm --filter @workspace/wife-chat-mobile run typecheck`
+- `rg -n "api/chat|/api/coach/session" README.md docs replit.md artifacts`
+- `rg -n "OPENAI_API_KEY|AI_INTEGRATIONS|APP_PASSCODE|OpenAI|x-app-passcode" artifacts/wife-chat-mobile`
+- `rg -n "console\\.|logger|analytics|captureException|captureMessage" artifacts/wife-chat-mobile/app artifacts/wife-chat-mobile/lib`
+- `git diff --name-only -- artifacts/api-server artifacts/wife-chat-mobile/ios artifacts/api-client-react artifacts/api-spec artifacts/wife-chat artifacts/wife-chat-mobile/lib/coach.ts`
+
+Manual checks:
+- Direct `/coach/before-send`, `/coach/repair`, and `/coach/checkin` still use per-tool history.
+- Loop-launched coach actions write messages/artifacts into the selected Loop.
+- Failed network request does not persist a Loop artifact.
+- Loop detail shows generated artifacts after successful Loop-launched coach action.
+
+Final report:
+- What changed
+- Why it changed
+- Files touched
+- Tests/checks run and exact results
+- Docs updated, or why not
+- Risks/manual steps remaining
+- Confirmation that no routes, prompts, generated clients, backend files, web files, native keyboard files, secrets, unsafe logging, analytics, cloud sync, or duplicate logic were added

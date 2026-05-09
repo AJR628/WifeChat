@@ -1,8 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,8 +17,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useColors } from "@/hooks/useColors";
-import type { Loop, LoopStage, LoopStatus } from "@/lib/loopModels";
-import { LOOP_STAGES, LOOP_STATUSES } from "@/lib/loopModels";
+import type { GeneratedArtifact, Loop, LoopStage, LoopStatus } from "@/lib/loopModels";
+import { LOOP_STAGES } from "@/lib/loopModels";
 import {
   closeLoop,
   getLoop,
@@ -39,6 +39,54 @@ const OPEN_STATUSES: LoopStatus[] = [
 ];
 
 const CLOSED_STATUSES: LoopStatus[] = ["resolved", "letGo"];
+
+const COACH_ACTIONS = [
+  {
+    key: "before-send" as const,
+    title: "Before You Send",
+    desc: "Improve a draft — softer, clearer, or shorter.",
+    icon: "send" as const,
+  },
+  {
+    key: "repair" as const,
+    title: "Repair After a Fight",
+    desc: "Find a small honest message that opens the door again.",
+    icon: "heart" as const,
+  },
+  {
+    key: "checkin" as const,
+    title: "Daily Check-In",
+    desc: "A two-minute ritual to notice, appreciate, and reach.",
+    icon: "sun" as const,
+  },
+] as const;
+
+function artifactToolLabel(sourceTool: string): string {
+  switch (sourceTool) {
+    case "before-send":
+      return "Before You Send";
+    case "repair":
+      return "Repair After a Fight";
+    case "checkin":
+      return "Daily Check-In";
+    default:
+      return sourceTool;
+  }
+}
+
+function artifactPreview(artifact: GeneratedArtifact): string {
+  const payload = artifact.payload;
+  if (
+    payload !== null &&
+    typeof payload === "object" &&
+    !Array.isArray(payload) &&
+    typeof (payload as Record<string, unknown>).text === "string"
+  ) {
+    const text = (payload as Record<string, string>).text;
+    return text.length > 160 ? text.slice(0, 157) + "…" : text;
+  }
+  return "";
+}
 
 export default function LoopDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -88,9 +136,11 @@ export default function LoopDetailScreen() {
     setLoading(false);
   }, [id]);
 
-  useEffect(() => {
-    loadLoop();
-  }, [loadLoop]);
+  useFocusEffect(
+    useCallback(() => {
+      loadLoop();
+    }, [loadLoop]),
+  );
 
   const handleSave = useCallback(async () => {
     if (!loop || !dirty || saving) return;
@@ -249,9 +299,6 @@ export default function LoopDetailScreen() {
           fontFamily: "Inter_600SemiBold",
           color: colors.primaryForeground,
         },
-        saveBtnTextDisabled: {
-          color: colors.mutedForeground,
-        },
         scroll: { flex: 1 },
         scrollContent: {
           paddingHorizontal: 20,
@@ -347,6 +394,43 @@ export default function LoopDetailScreen() {
           fontFamily: "Inter_600SemiBold",
           color: colors.primary,
         },
+        artifactCard: {
+          backgroundColor: colors.card,
+          borderRadius: 12,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          padding: 14,
+          marginBottom: 10,
+        },
+        artifactCardHeader: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 8,
+        },
+        artifactBadge: {
+          paddingHorizontal: 8,
+          paddingVertical: 3,
+          borderRadius: 10,
+          backgroundColor: colors.accent,
+        },
+        artifactBadgeText: {
+          fontSize: 11,
+          fontFamily: "Inter_500Medium",
+          color: colors.primary,
+        },
+        artifactTitle: {
+          flex: 1,
+          fontSize: 12,
+          fontFamily: "Inter_400Regular",
+          color: colors.mutedForeground,
+        },
+        artifactPreview: {
+          fontSize: 13,
+          fontFamily: "Inter_400Regular",
+          color: colors.foreground,
+          lineHeight: 19,
+        },
         artifactsPlaceholder: {
           padding: 20,
           borderRadius: 12,
@@ -363,6 +447,39 @@ export default function LoopDetailScreen() {
           color: colors.mutedForeground,
           textAlign: "center",
           lineHeight: 18,
+        },
+        coachActionCard: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          padding: 14,
+          borderRadius: 12,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          marginBottom: 10,
+        },
+        coachActionIcon: {
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          backgroundColor: colors.accent,
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        },
+        coachActionBody: { flex: 1 },
+        coachActionTitle: {
+          fontSize: 14,
+          fontFamily: "Inter_600SemiBold",
+          color: colors.foreground,
+          marginBottom: 2,
+        },
+        coachActionDesc: {
+          fontSize: 12,
+          fontFamily: "Inter_400Regular",
+          color: colors.mutedForeground,
+          lineHeight: 17,
         },
         actionsSection: {
           gap: 10,
@@ -441,6 +558,7 @@ export default function LoopDetailScreen() {
 
   const isClosed = CLOSED_STATUSES.includes(loop.status);
   const isOpen = OPEN_STATUSES.includes(loop.status);
+  const hasArtifacts = loop.generatedArtifacts.length > 0;
 
   return (
     <View style={styles.root}>
@@ -651,18 +769,71 @@ export default function LoopDetailScreen() {
         </View>
 
         <View style={styles.divider} />
-        <Text style={styles.sectionLabel}>Generated results</Text>
-        <View style={styles.artifactsPlaceholder}>
-          <Feather name="layers" size={22} color={colors.mutedForeground} />
-          <Text style={styles.artifactsPlaceholderText}>
-            Coach results will appear here after you use a tool inside this
-            loop. Based on what you wrote, you'll be able to get perspective,
-            draft a message, or plan a conversation.
-          </Text>
-        </View>
+        <Text style={styles.sectionLabel}>Coach results</Text>
+
+        {hasArtifacts ? (
+          loop.generatedArtifacts.map((artifact) => (
+            <View key={artifact.id} style={styles.artifactCard}>
+              <View style={styles.artifactCardHeader}>
+                <View style={styles.artifactBadge}>
+                  <Text style={styles.artifactBadgeText}>
+                    {artifactToolLabel(artifact.sourceTool)}
+                  </Text>
+                </View>
+                <Text style={styles.artifactTitle} numberOfLines={1}>
+                  {artifact.title}
+                </Text>
+              </View>
+              <Text style={styles.artifactPreview}>
+                {artifactPreview(artifact)}
+              </Text>
+            </View>
+          ))
+        ) : (
+          <View style={styles.artifactsPlaceholder}>
+            <Feather name="layers" size={22} color={colors.mutedForeground} />
+            <Text style={styles.artifactsPlaceholderText}>
+              Use a coach action below to get perspective, draft a message, or
+              plan a conversation. Results are saved here automatically — based
+              on what you wrote, not what the app assumes.
+            </Text>
+          </View>
+        )}
 
         {isOpen && (
           <>
+            <View style={styles.divider} />
+            <Text style={styles.sectionLabel}>Coach actions</Text>
+
+            {COACH_ACTIONS.map((action) => (
+              <Pressable
+                key={action.key}
+                style={({ pressed }) => [
+                  styles.coachActionCard,
+                  { opacity: pressed ? 0.85 : 1 },
+                ]}
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.selectionAsync();
+                  }
+                  router.push(
+                    `/coach/${action.key}?loopId=${loop.id}`,
+                  );
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`${action.title}. ${action.desc}`}
+              >
+                <View style={styles.coachActionIcon}>
+                  <Feather name={action.icon} size={16} color={colors.primary} />
+                </View>
+                <View style={styles.coachActionBody}>
+                  <Text style={styles.coachActionTitle}>{action.title}</Text>
+                  <Text style={styles.coachActionDesc}>{action.desc}</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            ))}
+
             <View style={styles.divider} />
             <Text style={styles.sectionLabel}>Loop actions</Text>
             <View style={styles.actionsSection}>

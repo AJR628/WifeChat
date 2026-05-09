@@ -1,5 +1,10 @@
 import { loadLoops, saveLoops } from "@/lib/storage";
-import type { Loop, LoopStatus } from "@/lib/loopModels";
+import type {
+  GeneratedArtifact,
+  Loop,
+  LoopMessage,
+  LoopStatus,
+} from "@/lib/loopModels";
 
 function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
@@ -92,6 +97,28 @@ export async function markNeedsFollowUp(id: string): Promise<Loop | null> {
 
 export async function markPartlyResolved(id: string): Promise<Loop | null> {
   return updateLoop(id, { status: "partlyResolved", stage: "close" });
+}
+
+export async function appendLoopInteraction(
+  id: string,
+  userMsg: LoopMessage,
+  assistantMsg: LoopMessage,
+  artifact: GeneratedArtifact,
+): Promise<Loop | null> {
+  const loops = await loadLoops();
+  const index = loops.findIndex((l) => l.id === id);
+  if (index === -1) return null;
+  const current = loops[index];
+  const updated: Loop = {
+    ...current,
+    updatedAt: Date.now(),
+    messages: [...current.messages, userMsg, assistantMsg],
+    generatedArtifacts: [...current.generatedArtifacts, artifact],
+  };
+  const next = [...loops];
+  next[index] = updated;
+  await saveLoops(next);
+  return updated;
 }
 
 export const OPEN_STATUSES: LoopStatus[] = [

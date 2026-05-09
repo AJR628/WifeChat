@@ -21,6 +21,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TOOLS, isToolKey, type ToolKey } from "@/constants/tools";
 import { useColors } from "@/hooks/useColors";
 import { sendCoach, isSupportedCoachTool, CoachError } from "@/lib/coach";
+import type { GeneratedArtifact, LoopMessage } from "@/lib/loopModels";
+import { appendLoopInteraction, getLoop } from "@/lib/loopStore";
 import {
   clearMessages,
   loadMessages,
@@ -32,7 +34,7 @@ import {
 const HEADER_HEIGHT = 56;
 
 export default function CoachScreen() {
-  const params = useLocalSearchParams<{ tool?: string }>();
+  const params = useLocalSearchParams<{ tool?: string; loopId?: string }>();
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -40,6 +42,12 @@ export default function CoachScreen() {
 
   const toolKey: ToolKey = isToolKey(params.tool) ? params.tool : "before-send";
   const tool = TOOLS[toolKey];
+
+  const loopId: string | undefined =
+    typeof params.loopId === "string" && params.loopId.length > 0
+      ? params.loopId
+      : undefined;
+  const loopMode = loopId !== undefined;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>("");
@@ -52,21 +60,41 @@ export default function CoachScreen() {
   useEffect(() => {
     let cancelled = false;
     setHydrated(false);
-    loadMessages(toolKey).then((loaded) => {
-      if (cancelled) return;
-      setMessages(loaded);
-      setHydrated(true);
-    });
+
+    if (loopMode && loopId) {
+      getLoop(loopId).then((found) => {
+        if (cancelled) return;
+        if (found && isSupportedCoachTool(toolKey)) {
+          const loopMsgs: Message[] = found.messages
+            .filter((m) => m.sourceTool === toolKey)
+            .map((m) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              ts: m.createdAt,
+            }));
+          setMessages(loopMsgs);
+        }
+        setHydrated(true);
+      });
+    } else {
+      loadMessages(toolKey).then((loaded) => {
+        if (cancelled) return;
+        setMessages(loaded);
+        setHydrated(true);
+      });
+    }
+
     return () => {
       cancelled = true;
     };
-  }, [toolKey]);
+  }, [toolKey, loopId, loopMode]);
 
   useEffect(() => {
-    if (hydrated) {
+    if (hydrated && !loopMode) {
       saveMessages(toolKey, messages);
     }
-  }, [toolKey, messages, hydrated]);
+  }, [toolKey, messages, hydrated, loopMode]);
 
   const isComingSoon = !!tool.comingSoon;
   const canSend = input.trim().length > 0 && !sending && !isComingSoon;
@@ -100,6 +128,34 @@ export default function CoachScreen() {
         ts: Date.now(),
       };
       setMessages((prev) => [...prev, reply]);
+
+      if (loopMode && loopId) {
+        const now = Date.now();
+        const userLoopMsg: LoopMessage = {
+          id: userMsg.id,
+          role: "user",
+          content: text,
+          createdAt: userMsg.ts,
+          sourceTool: toolKey,
+        };
+        const assistantLoopMsg: LoopMessage = {
+          id: reply.id,
+          role: "assistant",
+          content: replyText,
+          createdAt: reply.ts,
+          sourceTool: toolKey,
+        };
+        const artifact: GeneratedArtifact = {
+          id: newMessageId(),
+          loopId,
+          sourceTool: toolKey,
+          createdAt: now,
+          title: `${tool.title} · ${new Date(now).toLocaleDateString()}`,
+          payload: { text: replyText },
+          saved: true,
+        };
+        await appendLoopInteraction(loopId, userLoopMsg, assistantLoopMsg, artifact);
+      }
     } catch (err) {
       const message =
         err instanceof CoachError ? err.message : "Something went wrong. Please try again.";
@@ -109,7 +165,7 @@ export default function CoachScreen() {
     } finally {
       setSending(false);
     }
-  }, [input, sending, isComingSoon, toolKey]);
+  }, [input, sending, isComingSoon, toolKey, loopMode, loopId, tool.title]);
 
   const handleClear = useCallback(() => {
     if (messagesRef.current.length === 0) return;
@@ -185,6 +241,14 @@ export default function CoachScreen() {
           alignItems: "flex-start",
           gap: 10,
         },
+        loopBanner: {
+          backgroundColor: colors.muted,
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          flexDirection: "row",
+          alignItems: "flex-start",
+          gap: 10,
+        },
         goalIcon: {
           width: 26,
           height: 26,
@@ -200,6 +264,13 @@ export default function CoachScreen() {
           lineHeight: 17,
           fontFamily: "Inter_500Medium",
           color: colors.accentForeground,
+        },
+        loopBannerText: {
+          flex: 1,
+          fontSize: 12,
+          lineHeight: 17,
+          fontFamily: "Inter_500Medium",
+          color: colors.mutedForeground,
         },
         list: { flex: 1 },
         listContent: {
@@ -385,27 +456,46 @@ export default function CoachScreen() {
           </Pressable>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>{tool.title}</Text>
-            <Text style={styles.headerSub}>Guided mode</Text>
+            <Text style={styles.headerSub}>
+              {loopMode ? "Inside a loop" : "Guided mode"}
+            </Text>
           </View>
-          <Pressable
-            onPress={handleClear}
-            style={({ pressed }) => [
-              styles.iconBtn,
-              { opacity: messages.length === 0 ? 0.3 : pressed ? 0.6 : 1 },
-            ]}
-            disabled={messages.length === 0}
-            accessibilityLabel="Clear this session"
-            testID="clear-button"
-          >
-            <Feather name="rotate-ccw" size={18} color={colors.mutedForeground} />
-          </Pressable>
+          {loopMode ? (
+            <View style={styles.iconBtn} />
+          ) : (
+            <Pressable
+              onPress={handleClear}
+              style={({ pressed }) => [
+                styles.iconBtn,
+                { opacity: messages.length === 0 ? 0.3 : pressed ? 0.6 : 1 },
+              ]}
+              disabled={messages.length === 0}
+              accessibilityLabel="Clear this session"
+              testID="clear-button"
+            >
+              <Feather name="rotate-ccw" size={18} color={colors.mutedForeground} />
+            </Pressable>
+          )}
         </View>
-        <View style={styles.goalBanner}>
-          <View style={styles.goalIcon}>
-            <Feather name={tool.icon} size={14} color={colors.primary} />
+
+        {loopMode ? (
+          <View style={styles.loopBanner}>
+            <View style={styles.goalIcon}>
+              <Feather name={tool.icon} size={14} color={colors.mutedForeground} />
+            </View>
+            <Text style={styles.loopBannerText}>
+              Working inside this loop — results are saved back to it automatically.
+              Final sending is always up to you.
+            </Text>
           </View>
-          <Text style={styles.goalText}>{tool.outcome}</Text>
-        </View>
+        ) : (
+          <View style={styles.goalBanner}>
+            <View style={styles.goalIcon}>
+              <Feather name={tool.icon} size={14} color={colors.primary} />
+            </View>
+            <Text style={styles.goalText}>{tool.outcome}</Text>
+          </View>
+        )}
       </View>
 
       <KeyboardAvoidingView
