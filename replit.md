@@ -4,6 +4,14 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+## Front Door and Product Docs
+
+Start with `README.md` for repo-level orientation. Product intent lives in
+`docs/PRODUCT_SSOT.md`; the implementation bridge for building the Loop-first
+product in this repo lives in `docs/LOOP_PRODUCT_BUILD_SPEC.md`. Read both
+before changing product IA, prompts, API routes, local persistence, generated
+clients, native keyboard behavior, or user-facing privacy/safety copy.
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces

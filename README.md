@@ -11,9 +11,10 @@ WifeChat is not a generic chatbot, not therapy, not surveillance, and not a keyb
 Read these documents in order before making product, prompt, API, mobile, web, or keyboard changes:
 
 1. [`docs/PRODUCT_SSOT.md`](docs/PRODUCT_SSOT.md) — product source of truth: purpose, target user, Loops, personalization model, UI/UX principles, monetization posture, and agent rules.
-2. [`replit.md`](replit.md) — current workspace map, stack, commands, API safety posture, privacy language, and deployment assumptions.
-3. [`docs/IOS_KEYBOARD_EXTENSION_PLAN.md`](docs/IOS_KEYBOARD_EXTENSION_PLAN.md) — native iOS keyboard-extension source of truth.
-4. [`docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md`](docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md) — production safety/hardening plan for API, privacy, provider usage, tests, and operational posture.
+2. [`docs/LOOP_PRODUCT_BUILD_SPEC.md`](docs/LOOP_PRODUCT_BUILD_SPEC.md) — implementation bridge for building the Loop-first product from the SSOT into this repo.
+3. [`replit.md`](replit.md) — current workspace map, stack, commands, API safety posture, privacy language, and deployment assumptions.
+4. [`docs/IOS_KEYBOARD_EXTENSION_PLAN.md`](docs/IOS_KEYBOARD_EXTENSION_PLAN.md) — native iOS keyboard-extension source of truth.
+5. [`docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md`](docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md) — production safety/hardening plan for API, privacy, provider usage, tests, and operational posture.
 
 If those docs disagree with code, stop and report the drift before changing behavior unless the task explicitly asks you to resolve it.
 
