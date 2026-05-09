@@ -1,0 +1,120 @@
+Implement WifeChat Phase 2A only: the mobile local Loop shell.
+
+Required reading first:
+- README.md
+- replit.md
+- docs/PRODUCT_SSOT.md
+- docs/LOOP_PRODUCT_BUILD_SPEC.md
+- docs/IOS_KEYBOARD_EXTENSION_PLAN.md
+- artifacts/wife-chat-mobile/lib/loopModels.ts
+- artifacts/wife-chat-mobile/lib/storage.ts
+- artifacts/wife-chat-mobile/app/_layout.tsx
+- artifacts/wife-chat-mobile/app/(tabs)/index.tsx
+- current mobile app styling/hooks/components patterns
+
+Goal:
+Create the first mobile Loop shell using the Phase 1 local models/storage helpers. This is UI + local state only. No AI behavior changes.
+
+Scope for this task:
+1. Add `artifacts/wife-chat-mobile/lib/loopStore.ts`.
+2. Update `artifacts/wife-chat-mobile/app/_layout.tsx` to register:
+   - `loop/new`
+   - `loop/[id]`
+3. Update `artifacts/wife-chat-mobile/app/(tabs)/index.tsx` so Studio shows:
+   - Open Loops section
+   - loading state while loops hydrate
+   - empty state with “Start a Loop” CTA
+   - non-empty list of open/paused/needsFollowUp/partlyResolved loops sorted by `updatedAt` desc
+   - existing tool cards can remain below Open Loops as secondary quick tools
+4. Add `artifacts/wife-chat-mobile/app/loop/new.tsx`.
+5. Add `artifacts/wife-chat-mobile/app/loop/[id].tsx`.
+
+Loop store requirements:
+- Wrap existing Phase 1 helpers from `lib/storage.ts`.
+- Use local-only AsyncStorage helpers only.
+- Functions should include:
+  - `listLoops`
+  - `getLoop`
+  - `createLoop`
+  - `updateLoop`
+  - `closeLoop` or status-specific lifecycle helper
+- Always load latest loops before saving to reduce stale overwrites.
+- New Loop defaults:
+  - `stage: "untangle"`
+  - `status: "open"`
+  - `generatedArtifacts: []`
+  - `messages: []`
+  - timestamps from `Date.now()`
+
+Start Loop screen:
+- Fields:
+  - title
+  - what happened
+  - emotion
+  - interpretation
+  - need
+  - considering doing
+  - next step
+  - relationship type
+- Save disabled while saving.
+- On successful save, navigate to the new Loop detail.
+- No AI calls.
+
+Loop detail screen:
+- States:
+  - loading
+  - not found
+  - editable Loop fields
+  - stage/status controls
+  - generated artifacts placeholder
+  - pause / needs follow-up / resolved / let go actions
+- User can edit fields and save locally.
+- Closing/resolving/letting go should remove it from Open Loops but not delete it.
+- No AI calls.
+- No coach action wiring yet.
+
+Hard guardrails:
+- Do not implement Phase 2B or 2C.
+- Do not change `artifacts/wife-chat-mobile/lib/coach.ts`.
+- Do not change API routes, prompts, OpenAPI/codegen, generated clients, backend code, web app, native Swift, keyboard extension, package files, or dependencies.
+- Do not add `/api/chat`.
+- Do not add `/api/coach/session`.
+- Do not add analytics/logging.
+- Do not add cloud sync.
+- Do not add direct OpenAI usage.
+- Do not add secrets.
+- Do not read host-app messages.
+- Do not auto-send anything.
+
+UI guidance:
+- Make it polished and mobile-native, but keep the diff focused.
+- Use existing colors, fonts, spacing patterns, haptics, and Expo Router conventions.
+- Keep copy aligned with:
+  “See it clearly. Say it well. Close the loop.”
+- Avoid therapy, diagnosis, partner scoring, manipulation, surveillance, or mind-reading language.
+- Prefer “based on what you wrote” / “what seems unclear” / “next step” language.
+
+Verification:
+Run:
+- `corepack pnpm --filter @workspace/wife-chat-mobile run typecheck`
+- `rg -n "api/chat|/api/coach/session" README.md docs replit.md artifacts`
+- `rg -n "OPENAI_API_KEY|AI_INTEGRATIONS|APP_PASSCODE|OpenAI|x-app-passcode" artifacts/wife-chat-mobile`
+- `rg -n "console\\.|logger|analytics|captureException|captureMessage" artifacts/wife-chat-mobile/app artifacts/wife-chat-mobile/lib`
+- `git diff --name-only -- artifacts/api-server artifacts/wife-chat-mobile/ios artifacts/api-client-react artifacts/api-spec artifacts/wife-chat artifacts/wife-chat-mobile/lib/coach.ts`
+
+Expected:
+- Mobile typecheck passes.
+- Only mobile Loop shell/local UI files changed.
+- No backend, web, OpenAPI/codegen, generated client, native keyboard, package/dependency, prompt, or API caller changes.
+- No live `/api/chat` or `/api/coach/session`.
+- No mobile/native secrets.
+- No unsafe logging/analytics.
+
+Final report:
+- What changed
+- Why it changed
+- Files touched
+- Tests/checks run and exact results
+- Docs updated, or why not
+- Risks/manual steps remaining
+- Confirmation that no routes, prompts, generated clients, backend files, native keyboard files, secrets, unsafe logging, analytics, cloud sync, or duplicate logic were added
