@@ -1,8 +1,11 @@
 import { Feather } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,23 +14,88 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import type { GeneratedArtifact, Loop } from "@/lib/loopModels";
+import { isOpenLoop, listLoops, statusLabel } from "@/lib/loopStore";
 
-import type { ComponentProps } from "react";
+type ArtifactWithMeta = GeneratedArtifact & { loopTitle: string };
 
-type FeatherIcon = ComponentProps<typeof Feather>["name"];
+function toolLabel(sourceTool: string): string {
+  switch (sourceTool) {
+    case "before-send":
+      return "Before You Send";
+    case "repair":
+      return "Repair After a Fight";
+    case "checkin":
+      return "Daily Check-In";
+    default:
+      return sourceTool;
+  }
+}
 
-const CATEGORIES: { key: string; label: string; icon: FeatherIcon; hint: string }[] = [
-  { key: "drafts", label: "Drafts", icon: "edit-3", hint: "Messages you started writing." },
-  { key: "repair", label: "Repair Messages", icon: "heart", hint: "Words that helped you reconnect." },
-  { key: "checkins", label: "Check-Ins", icon: "sun", hint: "How you have been feeling, day to day." },
-  { key: "hard", label: "Hard Conversations", icon: "message-square", hint: "Plans for the talks that matter." },
-  { key: "worked", label: "Things That Worked", icon: "bookmark", hint: "Phrases and moves to remember." },
-];
+function artifactPreview(artifact: GeneratedArtifact): string {
+  const payload = artifact.payload;
+  if (
+    payload !== null &&
+    typeof payload === "object" &&
+    !Array.isArray(payload) &&
+    typeof (payload as Record<string, unknown>).text === "string"
+  ) {
+    const text = (payload as Record<string, string>).text;
+    return text.length > 120 ? text.slice(0, 117) + "…" : text;
+  }
+  return "";
+}
 
 export default function SavedScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const isWeb = Platform.OS === "web";
+
+  const [loops, setLoops] = useState<Loop[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      setLoading(true);
+      listLoops().then((all) => {
+        if (cancelled) return;
+        setLoops(all);
+        setLoading(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
+
+  const openLoops = useMemo(
+    () =>
+      loops
+        .filter(isOpenLoop)
+        .sort((a, b) => b.updatedAt - a.updatedAt),
+    [loops],
+  );
+
+  const closedLoops = useMemo(
+    () =>
+      loops
+        .filter((l) => !isOpenLoop(l))
+        .sort((a, b) => b.updatedAt - a.updatedAt),
+    [loops],
+  );
+
+  const recentArtifacts = useMemo<ArtifactWithMeta[]>(
+    () =>
+      loops
+        .flatMap((l) =>
+          l.generatedArtifacts.map((a) => ({ ...a, loopTitle: l.title })),
+        )
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, 8),
+    [loops],
+  );
 
   const styles = useMemo(
     () =>
@@ -36,7 +104,7 @@ export default function SavedScreen() {
         scroll: { flex: 1 },
         scrollContent: {
           paddingTop: (isWeb ? 67 : insets.top) + 8,
-          paddingBottom: 32,
+          paddingBottom: 40,
           paddingHorizontal: 20,
         },
         h1: {
@@ -62,16 +130,25 @@ export default function SavedScreen() {
           paddingVertical: 5,
           borderRadius: 999,
           backgroundColor: colors.muted,
-          marginBottom: 16,
+          marginBottom: 24,
         },
         deviceTagText: {
           fontSize: 11,
           fontFamily: "Inter_500Medium",
           color: colors.mutedForeground,
         },
-        card: {
+        sectionLabel: {
+          fontSize: 11,
+          fontFamily: "Inter_500Medium",
+          color: colors.mutedForeground,
+          letterSpacing: 0.6,
+          textTransform: "uppercase",
+          marginBottom: 12,
+        },
+        sectionGap: { marginBottom: 28 },
+        loopCard: {
           backgroundColor: colors.card,
-          borderRadius: colors.radius,
+          borderRadius: 12,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: colors.border,
           padding: 14,
@@ -80,38 +157,93 @@ export default function SavedScreen() {
           alignItems: "center",
           gap: 12,
         },
-        cardIcon: {
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          backgroundColor: colors.accent,
-          alignItems: "center",
-          justifyContent: "center",
-        },
-        cardBody: { flex: 1 },
-        cardTitle: {
+        loopCardBody: { flex: 1 },
+        loopCardTitle: {
           fontSize: 14,
           fontFamily: "Inter_600SemiBold",
           color: colors.foreground,
-          marginBottom: 2,
+          marginBottom: 4,
         },
-        cardHint: {
-          fontSize: 12,
-          fontFamily: "Inter_400Regular",
-          color: colors.mutedForeground,
+        loopCardMeta: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          flexWrap: "wrap",
         },
-        emptyTag: {
-          fontSize: 11,
-          fontFamily: "Inter_500Medium",
-          color: colors.mutedForeground,
+        badge: {
           paddingHorizontal: 8,
           paddingVertical: 3,
-          borderRadius: 999,
+          borderRadius: 20,
+          backgroundColor: colors.accent,
+        },
+        badgeMuted: {
           backgroundColor: colors.muted,
-          overflow: "hidden",
+        },
+        badgeText: {
+          fontSize: 11,
+          fontFamily: "Inter_500Medium",
+          color: colors.primary,
+        },
+        badgeTextMuted: {
+          color: colors.mutedForeground,
+        },
+        artifactCard: {
+          backgroundColor: colors.card,
+          borderRadius: 12,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          padding: 14,
+          marginBottom: 10,
+        },
+        artifactCardHeader: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 6,
+          flexWrap: "wrap",
+        },
+        artifactBadge: {
+          paddingHorizontal: 8,
+          paddingVertical: 3,
+          borderRadius: 10,
+          backgroundColor: colors.accent,
+        },
+        artifactBadgeText: {
+          fontSize: 11,
+          fontFamily: "Inter_500Medium",
+          color: colors.primary,
+        },
+        artifactLoopName: {
+          fontSize: 11,
+          fontFamily: "Inter_400Regular",
+          color: colors.mutedForeground,
+          flexShrink: 1,
+        },
+        artifactPreview: {
+          fontSize: 13,
+          fontFamily: "Inter_400Regular",
+          color: colors.foreground,
+          lineHeight: 18,
+        },
+        emptyBox: {
+          padding: 20,
+          borderRadius: 12,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          borderStyle: "dashed",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 4,
+        },
+        emptyText: {
+          fontSize: 13,
+          fontFamily: "Inter_400Regular",
+          color: colors.mutedForeground,
+          textAlign: "center",
+          lineHeight: 18,
         },
         footer: {
-          marginTop: 18,
+          marginTop: 8,
           padding: 14,
           borderRadius: 12,
           backgroundColor: colors.muted,
@@ -121,6 +253,12 @@ export default function SavedScreen() {
           lineHeight: 17,
           fontFamily: "Inter_400Regular",
           color: colors.mutedForeground,
+        },
+        centered: {
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingTop: 80,
         },
       }),
     [colors, insets.top, isWeb],
@@ -136,35 +274,168 @@ export default function SavedScreen() {
       >
         <Text style={styles.h1}>Saved</Text>
         <Text style={styles.sub}>
-          Drafts, repair messages, and small wins worth keeping.
+          Your loops and coach results, kept on this device.
         </Text>
 
         <View style={styles.deviceTag}>
           <Feather name="smartphone" size={11} color={colors.mutedForeground} />
-          <Text style={styles.deviceTagText}>Saved on this device</Text>
+          <Text style={styles.deviceTagText}>Stored on this device only</Text>
         </View>
 
-        {CATEGORIES.map((c) => (
-          <View key={c.key} style={styles.card}>
-            <View style={styles.cardIcon}>
-              <Feather name={c.icon} size={16} color={colors.primary} />
-            </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>{c.label}</Text>
-              <Text style={styles.cardHint}>{c.hint}</Text>
-            </View>
-            <Text style={styles.emptyTag}>Empty</Text>
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color={colors.primary} />
           </View>
-        ))}
+        ) : (
+          <>
+            <Text style={styles.sectionLabel}>Open loops</Text>
+            {openLoops.length === 0 ? (
+              <View style={[styles.emptyBox, styles.sectionGap]}>
+                <Feather name="circle" size={20} color={colors.mutedForeground} />
+                <Text style={styles.emptyText}>
+                  No open loops yet. Start one from the Studio tab when something
+                  feels unresolved.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.sectionGap}>
+                {openLoops.map((loop) => (
+                  <Pressable
+                    key={loop.id}
+                    style={({ pressed }) => [
+                      styles.loopCard,
+                      { opacity: pressed ? 0.85 : 1 },
+                    ]}
+                    onPress={() => router.push(`/loop/${loop.id}` as never)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Loop: ${loop.title}. ${statusLabel(loop.status)}.`}
+                  >
+                    <View style={styles.loopCardBody}>
+                      <Text style={styles.loopCardTitle} numberOfLines={1}>
+                        {loop.title}
+                      </Text>
+                      <View style={styles.loopCardMeta}>
+                        <View style={styles.badge}>
+                          <Text style={styles.badgeText}>
+                            {statusLabel(loop.status)}
+                          </Text>
+                        </View>
+                        {loop.generatedArtifacts.length > 0 && (
+                          <View style={[styles.badge, styles.badgeMuted]}>
+                            <Text style={[styles.badgeText, styles.badgeTextMuted]}>
+                              {loop.generatedArtifacts.length}{" "}
+                              {loop.generatedArtifacts.length === 1
+                                ? "result"
+                                : "results"}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <Feather
+                      name="chevron-right"
+                      size={16}
+                      color={colors.mutedForeground}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Saving items is coming soon. Drafts and conversations stay on this
-            device — WifeChat does not sync them to a cloud account in this
-            prototype. When you ask the assistant for help, your text is sent
-            to the WifeChat API and OpenAI to generate a response.
-          </Text>
-        </View>
+            <Text style={styles.sectionLabel}>Closed loops</Text>
+            {closedLoops.length === 0 ? (
+              <View style={[styles.emptyBox, styles.sectionGap]}>
+                <Feather name="check-circle" size={20} color={colors.mutedForeground} />
+                <Text style={styles.emptyText}>
+                  Resolved and let-go loops will appear here.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.sectionGap}>
+                {closedLoops.map((loop) => (
+                  <Pressable
+                    key={loop.id}
+                    style={({ pressed }) => [
+                      styles.loopCard,
+                      { opacity: pressed ? 0.85 : 1 },
+                    ]}
+                    onPress={() => router.push(`/loop/${loop.id}` as never)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Loop: ${loop.title}. ${statusLabel(loop.status)}.`}
+                  >
+                    <View style={styles.loopCardBody}>
+                      <Text style={styles.loopCardTitle} numberOfLines={1}>
+                        {loop.title}
+                      </Text>
+                      <View style={styles.loopCardMeta}>
+                        <View style={[styles.badge, styles.badgeMuted]}>
+                          <Text style={[styles.badgeText, styles.badgeTextMuted]}>
+                            {statusLabel(loop.status)}
+                          </Text>
+                        </View>
+                        {loop.generatedArtifacts.length > 0 && (
+                          <View style={[styles.badge, styles.badgeMuted]}>
+                            <Text style={[styles.badgeText, styles.badgeTextMuted]}>
+                              {loop.generatedArtifacts.length}{" "}
+                              {loop.generatedArtifacts.length === 1
+                                ? "result"
+                                : "results"}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <Feather
+                      name="chevron-right"
+                      size={16}
+                      color={colors.mutedForeground}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            <Text style={styles.sectionLabel}>Recent coach results</Text>
+            {recentArtifacts.length === 0 ? (
+              <View style={[styles.emptyBox, styles.sectionGap]}>
+                <Feather name="layers" size={20} color={colors.mutedForeground} />
+                <Text style={styles.emptyText}>
+                  Coach results from loop actions will be saved here
+                  automatically.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.sectionGap}>
+                {recentArtifacts.map((artifact) => (
+                  <View key={artifact.id} style={styles.artifactCard}>
+                    <View style={styles.artifactCardHeader}>
+                      <View style={styles.artifactBadge}>
+                        <Text style={styles.artifactBadgeText}>
+                          {toolLabel(artifact.sourceTool)}
+                        </Text>
+                      </View>
+                      <Text style={styles.artifactLoopName} numberOfLines={1}>
+                        {artifact.loopTitle}
+                      </Text>
+                    </View>
+                    <Text style={styles.artifactPreview}>
+                      {artifactPreview(artifact)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                Loops, messages, and results are stored on this device only.
+                WifeChat does not sync them to a cloud account. When you use a
+                coach action, your text is sent to the WifeChat API and OpenAI
+                to generate a response.
+              </Text>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );

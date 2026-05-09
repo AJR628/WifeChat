@@ -1,0 +1,92 @@
+Implement WifeChat Phase 2C only: Saved/Rituals/Profile reframing for the mobile Loop product.
+
+Required reading first:
+- README.md
+- replit.md
+- docs/PRODUCT_SSOT.md
+- docs/LOOP_PRODUCT_BUILD_SPEC.md
+- artifacts/wife-chat-mobile/lib/loopModels.ts
+- artifacts/wife-chat-mobile/lib/storage.ts
+- artifacts/wife-chat-mobile/lib/loopStore.ts
+- current mobile tab screens under artifacts/wife-chat-mobile/app/(tabs)
+
+Goal:
+Reframe the non-Studio tabs around the Loop-first product without adding AI behavior, backend behavior, cloud sync, or new routes.
+
+Scope:
+1. Update the Saved tab so it becomes a local Loop library/archive.
+   - Show Open Loops.
+   - Show Closed Loops: resolved and letGo.
+   - Show recent generated artifacts from Loops.
+   - Empty states should explain that Loops and coach results saved on this device will appear here.
+   - Tapping a Loop should open `/loop/[id]`.
+   - Do not add new storage models unless necessary.
+
+2. Update the Rituals tab into Maintenance Mode.
+   - Maintenance Mode is for saved people/profiles when no active Loop exists.
+   - Since Relationship Profile UI is not fully built yet, make this a polished placeholder/early shell.
+   - It can show:
+     - “Maintenance Mode”
+     - “Keep relationships tended when nothing is burning”
+     - future cards for check-ins, appreciation, follow-up, saved lessons
+   - No AI calls.
+   - No fake profile inference.
+   - No partner scoring.
+
+3. Update the Profile tab to expose local data/privacy controls.
+   - Explain local-only Loop/profile/draft storage honestly.
+   - Add a “Clear local WifeChat data” action using `clearAllWifeChatLocalData()`.
+   - Require confirmation before clearing.
+   - After clearing, local Loops/messages/profiles/saved lessons/follow-ups should be removed.
+   - Do not add account/cloud deletion language unless cloud accounts actually exist.
+
+4. Keep Studio and coach behavior intact.
+   - Do not change `lib/coach.ts`.
+   - Do not change Loop action behavior from Phase 2B.
+
+Hard guardrails:
+- Do not add Reality Check.
+- Do not implement Relationship Profile editing unless it is a tiny local placeholder explicitly within scope.
+- Do not add API routes.
+- Do not edit prompts.
+- Do not edit OpenAPI/codegen.
+- Do not edit generated clients.
+- Do not edit backend files.
+- Do not edit web app.
+- Do not edit native Swift/keyboard extension.
+- Do not edit package files or dependencies.
+- Do not add `/api/chat`.
+- Do not add `/api/coach/session`.
+- Do not add analytics/logging.
+- Do not add cloud sync.
+- Do not add direct OpenAI usage.
+- Do not add secrets.
+- Do not read host-app messages.
+- Do not auto-send anything.
+- Do not add therapy, diagnosis, partner scoring, surveillance, or manipulation copy.
+
+Verification:
+Run:
+- `corepack pnpm --filter @workspace/wife-chat-mobile run typecheck`
+- `rg -n "api/chat|/api/coach/session" README.md docs replit.md artifacts`
+- `rg -n "OPENAI_API_KEY|AI_INTEGRATIONS|APP_PASSCODE|OpenAI|x-app-passcode" artifacts/wife-chat-mobile`
+- `rg -n "console\\.|logger|analytics|captureException|captureMessage" artifacts/wife-chat-mobile/app artifacts/wife-chat-mobile/lib`
+- `git diff --name-only -- artifacts/api-server artifacts/wife-chat-mobile/ios artifacts/api-client-react artifacts/api-spec artifacts/wife-chat artifacts/wife-chat-mobile/lib/coach.ts`
+
+Manual checks:
+- Saved tab shows local open/closed Loops after creating/resolving Loops.
+- Saved tab can navigate to Loop detail.
+- Rituals tab reads as Maintenance Mode, not generic rituals.
+- Profile tab can clear all local data after confirmation.
+- After clear-all, Studio/Saved no longer show old Loops.
+- Existing direct coach tools still work.
+- Existing Loop-launched coach actions still save artifacts.
+
+Final report:
+- What changed
+- Why it changed
+- Files touched
+- Tests/checks run and exact results
+- Docs updated, or why not
+- Risks/manual steps remaining
+- Confirmation that no routes, prompts, generated clients, backend files, web files, native keyboard files, secrets, unsafe logging, analytics, cloud sync, or duplicate logic were added

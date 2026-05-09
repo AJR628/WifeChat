@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -12,7 +13,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
-import { loadTone, saveTone, type Tone } from "@/lib/storage";
+import {
+  clearAllWifeChatLocalData,
+  loadTone,
+  saveTone,
+  type Tone,
+} from "@/lib/storage";
 
 const TONES: { key: Tone; label: string; sub: string }[] = [
   { key: "warmer", label: "Warmer", sub: "Lean toward gentle." },
@@ -27,6 +33,8 @@ export default function ProfileScreen() {
 
   const [tone, setTone] = useState<Tone>("balanced");
   const [hydrated, setHydrated] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [cleared, setCleared] = useState(false);
 
   useEffect(() => {
     loadTone().then((t) => {
@@ -40,6 +48,27 @@ export default function ProfileScreen() {
     saveTone(t);
   };
 
+  const handleClearData = () => {
+    Alert.alert(
+      "Clear all local data?",
+      "This permanently removes all loops, messages, coach results, and preferences stored on this device. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear data",
+          style: "destructive",
+          onPress: async () => {
+            setClearing(true);
+            await clearAllWifeChatLocalData();
+            setTone("balanced");
+            setCleared(true);
+            setClearing(false);
+          },
+        },
+      ],
+    );
+  };
+
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -47,7 +76,7 @@ export default function ProfileScreen() {
         scroll: { flex: 1 },
         scrollContent: {
           paddingTop: (isWeb ? 67 : insets.top) + 8,
-          paddingBottom: 32,
+          paddingBottom: 40,
           paddingHorizontal: 20,
         },
         h1: {
@@ -125,7 +154,7 @@ export default function ProfileScreen() {
           color: colors.mutedForeground,
           fontStyle: "italic",
         },
-        privacyCard: {
+        infoCard: {
           backgroundColor: colors.card,
           borderRadius: colors.radius,
           borderWidth: StyleSheet.hairlineWidth,
@@ -133,22 +162,69 @@ export default function ProfileScreen() {
           padding: 14,
           marginBottom: 22,
         },
-        privacyTitleRow: {
+        infoTitleRow: {
           flexDirection: "row",
           alignItems: "center",
           gap: 8,
           marginBottom: 8,
         },
-        privacyTitle: {
+        infoTitle: {
           fontSize: 13,
           fontFamily: "Inter_600SemiBold",
           color: colors.foreground,
         },
-        privacyText: {
+        infoText: {
           fontSize: 12,
           lineHeight: 18,
           fontFamily: "Inter_400Regular",
           color: colors.mutedForeground,
+        },
+        dataRow: {
+          flexDirection: "row",
+          alignItems: "flex-start",
+          gap: 8,
+          marginBottom: 8,
+        },
+        dataDot: {
+          width: 4,
+          height: 4,
+          borderRadius: 2,
+          backgroundColor: colors.mutedForeground,
+          marginTop: 7,
+          flexShrink: 0,
+        },
+        dataText: {
+          flex: 1,
+          fontSize: 12,
+          lineHeight: 18,
+          fontFamily: "Inter_400Regular",
+          color: colors.mutedForeground,
+        },
+        clearBtn: {
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          paddingVertical: 13,
+          paddingHorizontal: 16,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.destructive,
+          backgroundColor: colors.background,
+          marginBottom: 8,
+          opacity: clearing ? 0.5 : 1,
+        },
+        clearBtnText: {
+          fontSize: 14,
+          fontFamily: "Inter_600SemiBold",
+          color: colors.destructive,
+        },
+        clearedNote: {
+          fontSize: 12,
+          fontFamily: "Inter_400Regular",
+          color: colors.mutedForeground,
+          textAlign: "center",
+          marginBottom: 16,
         },
         meta: {
           fontSize: 11,
@@ -158,7 +234,7 @@ export default function ProfileScreen() {
           marginTop: 8,
         },
       }),
-    [colors, insets.top, isWeb],
+    [colors, insets.top, isWeb, clearing],
   );
 
   return (
@@ -171,7 +247,7 @@ export default function ProfileScreen() {
       >
         <Text style={styles.h1}>Profile</Text>
         <Text style={styles.sub}>
-          Tune the experience and review what this app is — and is not.
+          Preferences and local data controls.
         </Text>
 
         <Text style={styles.sectionLabel}>Communication preferences</Text>
@@ -208,29 +284,74 @@ export default function ProfileScreen() {
         </Text>
 
         <Text style={styles.sectionLabel}>Privacy</Text>
-        <View style={styles.privacyCard}>
-          <View style={styles.privacyTitleRow}>
+        <View style={styles.infoCard}>
+          <View style={styles.infoTitleRow}>
             <Feather name="shield" size={14} color={colors.mutedForeground} />
-            <Text style={styles.privacyTitle}>What this app is</Text>
+            <Text style={styles.infoTitle}>What this app stores</Text>
           </View>
-          <Text style={styles.privacyText}>
-            A communication coach. Not therapy, not crisis support, not a way to
-            track, score, or diagnose your partner. Drafts and conversations
-            are stored on this device. When you ask the assistant for help,
-            your text is sent to the WifeChat API and on to OpenAI to generate
-            a reply. WifeChat does not sync this to a cloud account in this
-            prototype. Crisis numbers shown are US defaults; if you are
-            elsewhere, please use your local emergency or crisis resources.
+          {[
+            "Loops, messages, and coach results — on this device only, not synced to a cloud account.",
+            "Your tone preference — on this device only.",
+            "When you ask the assistant for help, your text is sent to the WifeChat API and on to OpenAI to generate a reply.",
+            "WifeChat server logs are designed to be metadata-only — no raw relationship content.",
+            "Safety or crisis language may trigger a static response with crisis resources instead of an AI reply.",
+          ].map((line, i) => (
+            <View key={i} style={styles.dataRow}>
+              <View style={styles.dataDot} />
+              <Text style={styles.dataText}>{line}</Text>
+            </View>
+          ))}
+        </View>
+
+        <Text style={styles.sectionLabel}>Local data</Text>
+        <View style={styles.infoCard}>
+          <View style={styles.infoTitleRow}>
+            <Feather name="hard-drive" size={14} color={colors.mutedForeground} />
+            <Text style={styles.infoTitle}>What is stored on this device</Text>
+          </View>
+          <Text style={styles.infoText}>
+            Loops · coach results · messages · tone preference. Nothing is
+            synced to a cloud account in this prototype. Clearing removes
+            everything stored by WifeChat on this device.
           </Text>
         </View>
 
+        {cleared ? (
+          <Text style={styles.clearedNote}>
+            All local WifeChat data has been cleared.
+          </Text>
+        ) : (
+          <Pressable
+            onPress={handleClearData}
+            disabled={clearing}
+            style={({ pressed }) => [
+              styles.clearBtn,
+              { opacity: clearing ? 0.5 : pressed ? 0.8 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Clear all local WifeChat data"
+            testID="clear-data-button"
+          >
+            <Feather name="trash-2" size={16} color={colors.destructive} />
+            <Text style={styles.clearBtnText}>
+              {clearing ? "Clearing…" : "Clear all local data"}
+            </Text>
+          </Pressable>
+        )}
+
         <Text style={styles.sectionLabel}>About</Text>
-        <View style={styles.privacyCard}>
-          <Text style={styles.privacyText}>
-            Relationship Studio · prototype build. If you are in danger or in
-            crisis, please reach a qualified professional. In the US: 988
-            (Suicide & Crisis Lifeline) or 1-800-799-7233 (National Domestic
-            Violence Hotline).
+        <View style={styles.infoCard}>
+          <View style={styles.infoTitleRow}>
+            <Feather name="info" size={14} color={colors.mutedForeground} />
+            <Text style={styles.infoTitle}>What this app is not</Text>
+          </View>
+          <Text style={styles.infoText}>
+            Not therapy, not crisis support, not a way to track, score, or
+            diagnose your partner. If you are in danger or in crisis, please
+            reach a qualified professional. In the US: 988 (Suicide & Crisis
+            Lifeline) or 1-800-799-7233 (National Domestic Violence Hotline).
+            If you are outside the US, please use your local emergency or
+            crisis resources.
           </Text>
         </View>
 

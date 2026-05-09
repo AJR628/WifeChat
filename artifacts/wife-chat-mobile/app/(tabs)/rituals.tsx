@@ -18,36 +18,43 @@ import type { ComponentProps } from "react";
 
 type FeatherIcon = ComponentProps<typeof Feather>["name"];
 
-interface Ritual {
+interface MaintenanceCard {
   key: string;
   label: string;
-  outcome: string;
+  desc: string;
   icon: FeatherIcon;
   status: "available" | "soon";
   href?: string;
 }
 
-const RITUALS: Ritual[] = [
+const MAINTENANCE_CARDS: MaintenanceCard[] = [
   {
-    key: "daily",
+    key: "checkin",
     label: "Daily Check-In",
-    outcome: "A two-minute moment to notice and reach.",
+    desc: "A two-minute ritual to notice, appreciate, and reach.",
     icon: "sun",
     status: "available",
     href: "/coach/checkin",
   },
   {
-    key: "weekly",
-    label: "Weekly Reset",
-    outcome: "What landed, what frayed, what to try next week.",
-    icon: "refresh-cw",
+    key: "appreciation",
+    label: "Appreciation Prompt",
+    desc: "One specific thing you noticed and valued — worth saying out loud.",
+    icon: "star",
     status: "soon",
   },
   {
-    key: "appreciation",
-    label: "Appreciation Prompt",
-    outcome: "One specific thing you noticed and valued.",
-    icon: "star",
+    key: "followup",
+    label: "Follow-Up",
+    desc: "Check back on something you said you'd do or revisit.",
+    icon: "bell",
+    status: "soon",
+  },
+  {
+    key: "lessons",
+    label: "Saved Lessons",
+    desc: "Phrases and moves that worked — so you remember them next time.",
+    icon: "bookmark",
     status: "soon",
   },
 ];
@@ -65,7 +72,7 @@ export default function RitualsScreen() {
         scroll: { flex: 1 },
         scrollContent: {
           paddingTop: (isWeb ? 67 : insets.top) + 8,
-          paddingBottom: 32,
+          paddingBottom: 40,
           paddingHorizontal: 20,
         },
         h1: {
@@ -80,11 +87,28 @@ export default function RitualsScreen() {
           lineHeight: 19,
           fontFamily: "Inter_400Regular",
           color: colors.mutedForeground,
-          marginBottom: 18,
+          marginBottom: 24,
+        },
+        modeBadge: {
+          alignSelf: "flex-start",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          paddingHorizontal: 10,
+          paddingVertical: 5,
+          borderRadius: 999,
+          backgroundColor: colors.accent,
+          marginBottom: 20,
+        },
+        modeBadgeText: {
+          fontSize: 11,
+          fontFamily: "Inter_600SemiBold",
+          color: colors.primary,
+          letterSpacing: 0.3,
         },
         card: {
           backgroundColor: colors.card,
-          borderRadius: colors.radius,
+          borderRadius: 12,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: colors.border,
           padding: 16,
@@ -93,7 +117,7 @@ export default function RitualsScreen() {
           alignItems: "flex-start",
           gap: 14,
         },
-        cardSoon: { opacity: 0.6 },
+        cardSoon: { opacity: 0.55 },
         cardIcon: {
           width: 40,
           height: 40,
@@ -101,7 +125,8 @@ export default function RitualsScreen() {
           backgroundColor: colors.accent,
           alignItems: "center",
           justifyContent: "center",
-          marginTop: 2,
+          marginTop: 1,
+          flexShrink: 0,
         },
         cardBody: { flex: 1 },
         cardTitleRow: {
@@ -109,6 +134,7 @@ export default function RitualsScreen() {
           alignItems: "center",
           gap: 8,
           marginBottom: 3,
+          flexWrap: "wrap",
         },
         cardTitle: {
           fontSize: 15,
@@ -127,9 +153,21 @@ export default function RitualsScreen() {
           letterSpacing: 0.4,
           textTransform: "uppercase",
         },
-        cardOutcome: {
+        cardDesc: {
           fontSize: 13,
           lineHeight: 18,
+          fontFamily: "Inter_400Regular",
+          color: colors.mutedForeground,
+        },
+        footer: {
+          marginTop: 12,
+          padding: 14,
+          borderRadius: 12,
+          backgroundColor: colors.muted,
+        },
+        footerText: {
+          fontSize: 12,
+          lineHeight: 17,
           fontFamily: "Inter_400Regular",
           color: colors.mutedForeground,
         },
@@ -145,40 +183,46 @@ export default function RitualsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.h1}>Rituals</Text>
+        <Text style={styles.h1}>Maintenance Mode</Text>
         <Text style={styles.sub}>
-          Small, repeatable moments that build the way you talk over time.
+          Keep relationships tended when nothing is burning.
         </Text>
 
-        {RITUALS.map((r) => {
-          const soon = r.status === "soon";
-          const onPress = () => {
-            if (!soon && r.href) router.push(r.href as never);
-          };
+        <View style={styles.modeBadge}>
+          <Feather name="activity" size={11} color={colors.primary} />
+          <Text style={styles.modeBadgeText}>No active loop</Text>
+        </View>
+
+        {MAINTENANCE_CARDS.map((card) => {
+          const soon = card.status === "soon";
           return (
             <Pressable
-              key={r.key}
-              onPress={onPress}
+              key={card.key}
+              onPress={() => {
+                if (!soon && card.href) router.push(card.href as never);
+              }}
               disabled={soon}
               style={({ pressed }) => [
                 styles.card,
                 soon && styles.cardSoon,
-                { opacity: !soon && pressed ? 0.85 : soon ? 0.6 : 1 },
+                { opacity: !soon && pressed ? 0.85 : soon ? 0.55 : 1 },
               ]}
               accessibilityRole="button"
               accessibilityState={{ disabled: soon }}
-              accessibilityLabel={`${r.label}. ${soon ? "Coming soon. " : ""}${r.outcome}`}
-              testID={`ritual-${r.key}`}
+              accessibilityLabel={`${card.label}. ${soon ? "Coming soon. " : ""}${card.desc}`}
+              testID={`maintenance-${card.key}`}
             >
               <View style={styles.cardIcon}>
-                <Feather name={r.icon} size={18} color={colors.primary} />
+                <Feather name={card.icon} size={18} color={colors.primary} />
               </View>
               <View style={styles.cardBody}>
                 <View style={styles.cardTitleRow}>
-                  <Text style={styles.cardTitle}>{r.label}</Text>
-                  {soon ? <Text style={styles.soonPill}>Soon</Text> : null}
+                  <Text style={styles.cardTitle}>{card.label}</Text>
+                  {soon ? (
+                    <Text style={styles.soonPill}>Soon</Text>
+                  ) : null}
                 </View>
-                <Text style={styles.cardOutcome}>{r.outcome}</Text>
+                <Text style={styles.cardDesc}>{card.desc}</Text>
               </View>
               {!soon ? (
                 <Feather
@@ -191,6 +235,14 @@ export default function RitualsScreen() {
             </Pressable>
           );
         })}
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Maintenance Mode is for keeping things good when there is no active
+            loop to work through. Relationship profiles and saved lessons are
+            coming in a future build.
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
