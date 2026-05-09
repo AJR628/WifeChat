@@ -186,6 +186,17 @@ about this relationship"; it must not say or imply "they definitely feel" or
   spec covering auth, deletion, retention, encryption, access controls, support
   workflows, and App Store privacy disclosures.
 
+Current Phase 1 mobile storage keys:
+
+- `wife_chat_loops_v1`
+- `wife_chat_relationship_profiles_v1`
+- `wife_chat_user_communication_profile_v1`
+- `wife_chat_voice_profile_v1`
+- `wife_chat_saved_lessons_v1`
+- `wife_chat_follow_up_reminders_v1`
+- Existing per-tool session keys under `wife_chat_messages_<tool>` remain in
+  place until a later UI migration intentionally moves sessions into Loops.
+
 ## Mobile IA Plan
 
 - Move the Studio start state from a "Pick a moment" tool grid toward Open
