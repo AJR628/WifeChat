@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -14,12 +16,32 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { TOOL_LIST, type Tool } from "@/constants/tools";
 import { useColors } from "@/hooks/useColors";
+import type { Loop } from "@/lib/loopModels";
+import { getOpenLoops, listLoops, statusLabel } from "@/lib/loopStore";
 
 export default function StudioScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const isWeb = Platform.OS === "web";
+
+  const [openLoops, setOpenLoops] = useState<Loop[]>([]);
+  const [hydrated, setHydrated] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      setHydrated(false);
+      listLoops().then((all) => {
+        if (cancelled) return;
+        setOpenLoops(getOpenLoops(all));
+        setHydrated(true);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   const styles = useMemo(
     () =>
@@ -57,29 +79,12 @@ export default function StudioScreen() {
           color: colors.mutedForeground,
           marginTop: 1,
         },
-        hero: {
-          marginBottom: 22,
-        },
-        heroEyebrow: {
-          fontSize: 12,
-          fontFamily: "Inter_500Medium",
-          color: colors.primary,
-          letterSpacing: 0.4,
-          textTransform: "uppercase",
-          marginBottom: 8,
-        },
-        heroTitle: {
-          fontSize: 26,
-          lineHeight: 32,
-          fontFamily: "Inter_700Bold",
-          color: colors.foreground,
-          marginBottom: 6,
-        },
-        heroSub: {
-          fontSize: 14,
-          lineHeight: 20,
-          fontFamily: "Inter_400Regular",
-          color: colors.mutedForeground,
+        sectionHeader: {
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+          marginTop: 4,
         },
         sectionLabel: {
           fontSize: 11,
@@ -87,8 +92,123 @@ export default function StudioScreen() {
           color: colors.mutedForeground,
           letterSpacing: 0.6,
           textTransform: "uppercase",
-          marginBottom: 10,
+        },
+        newLoopBtn: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 4,
+          paddingHorizontal: 10,
+          paddingVertical: 5,
+          borderRadius: 20,
+          backgroundColor: colors.primary,
+        },
+        newLoopBtnText: {
+          fontSize: 12,
+          fontFamily: "Inter_600SemiBold",
+          color: colors.primaryForeground,
+        },
+        loopsLoadingRow: {
+          alignItems: "center",
+          paddingVertical: 24,
+        },
+        emptyLoops: {
+          padding: 20,
+          borderRadius: 14,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 8,
+        },
+        emptyLoopsTitle: {
+          fontSize: 15,
+          fontFamily: "Inter_600SemiBold",
+          color: colors.foreground,
+          textAlign: "center",
+        },
+        emptyLoopsSub: {
+          fontSize: 13,
+          fontFamily: "Inter_400Regular",
+          color: colors.mutedForeground,
+          textAlign: "center",
+          lineHeight: 19,
+        },
+        startLoopCta: {
           marginTop: 4,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          paddingHorizontal: 18,
+          paddingVertical: 10,
+          borderRadius: 22,
+          backgroundColor: colors.primary,
+        },
+        startLoopCtaText: {
+          fontSize: 14,
+          fontFamily: "Inter_600SemiBold",
+          color: colors.primaryForeground,
+        },
+        loopCard: {
+          backgroundColor: colors.card,
+          borderRadius: colors.radius,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          padding: 14,
+          marginBottom: 10,
+        },
+        loopCardRow: {
+          flexDirection: "row",
+          alignItems: "flex-start",
+          gap: 12,
+        },
+        loopCardIcon: {
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          backgroundColor: colors.accent,
+          alignItems: "center",
+          justifyContent: "center",
+          marginTop: 1,
+          flexShrink: 0,
+        },
+        loopCardBody: { flex: 1 },
+        loopCardTitle: {
+          fontSize: 14,
+          fontFamily: "Inter_600SemiBold",
+          color: colors.foreground,
+          marginBottom: 3,
+        },
+        loopCardMeta: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          flexWrap: "wrap",
+        },
+        loopCardBadge: {
+          paddingHorizontal: 8,
+          paddingVertical: 3,
+          borderRadius: 10,
+          backgroundColor: colors.accent,
+        },
+        loopCardBadgeText: {
+          fontSize: 11,
+          fontFamily: "Inter_500Medium",
+          color: colors.primary,
+        },
+        loopCardBadgeMuted: {
+          backgroundColor: colors.muted,
+        },
+        loopCardBadgeMutedText: {
+          color: colors.mutedForeground,
+        },
+        loopCardChevron: {
+          marginTop: 6,
+        },
+        divider: {
+          height: StyleSheet.hairlineWidth,
+          backgroundColor: colors.border,
+          marginVertical: 20,
         },
         card: {
           backgroundColor: colors.card,
@@ -142,9 +262,32 @@ export default function StudioScreen() {
           fontFamily: "Inter_400Regular",
           color: colors.mutedForeground,
         },
+        toolsSectionLabel: {
+          fontSize: 11,
+          fontFamily: "Inter_500Medium",
+          color: colors.mutedForeground,
+          letterSpacing: 0.6,
+          textTransform: "uppercase",
+          marginBottom: 10,
+          marginTop: 4,
+        },
       }),
     [colors, insets.top, isWeb],
   );
+
+  function handleStartLoop() {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push("/loop/new");
+  }
+
+  function handleOpenLoop(loop: Loop) {
+    if (Platform.OS !== "web") {
+      Haptics.selectionAsync();
+    }
+    router.push(`/loop/${loop.id}`);
+  }
 
   return (
     <View style={styles.root}>
@@ -164,16 +307,108 @@ export default function StudioScreen() {
           </View>
         </View>
 
-        <View style={styles.hero}>
-          <Text style={styles.heroEyebrow}>What do you need help with?</Text>
-          <Text style={styles.heroTitle}>Pick a moment.</Text>
-          <Text style={styles.heroSub}>
-            Five small tools for the moments that actually matter — before you
-            send, after a fight, before a hard talk.
-          </Text>
+        {/* Open Loops section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>Open loops</Text>
+          <Pressable
+            onPress={handleStartLoop}
+            style={({ pressed }) => [
+              styles.newLoopBtn,
+              { opacity: pressed ? 0.8 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Start a new loop"
+          >
+            <Feather name="plus" size={12} color={colors.primaryForeground} />
+            <Text style={styles.newLoopBtnText}>Start a loop</Text>
+          </Pressable>
         </View>
 
-        <Text style={styles.sectionLabel}>Choose a moment</Text>
+        {!hydrated ? (
+          <View style={styles.loopsLoadingRow}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : openLoops.length === 0 ? (
+          <View style={styles.emptyLoops}>
+            <Feather name="circle" size={28} color={colors.mutedForeground} />
+            <Text style={styles.emptyLoopsTitle}>No open loops</Text>
+            <Text style={styles.emptyLoopsSub}>
+              See it clearly. Say it well. Close the loop.{"\n"}Start one when
+              something feels unresolved.
+            </Text>
+            <Pressable
+              onPress={handleStartLoop}
+              style={({ pressed }) => [
+                styles.startLoopCta,
+                { opacity: pressed ? 0.8 : 1 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Start a Loop"
+            >
+              <Feather name="plus-circle" size={16} color={colors.primaryForeground} />
+              <Text style={styles.startLoopCtaText}>Start a Loop</Text>
+            </Pressable>
+          </View>
+        ) : (
+          openLoops.map((loop) => (
+            <Pressable
+              key={loop.id}
+              onPress={() => handleOpenLoop(loop)}
+              style={({ pressed }) => [
+                styles.loopCard,
+                { opacity: pressed ? 0.85 : 1 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Loop: ${loop.title}. Status: ${statusLabel(loop.status)}`}
+            >
+              <View style={styles.loopCardRow}>
+                <View style={styles.loopCardIcon}>
+                  <Feather name="circle" size={16} color={colors.primary} />
+                </View>
+                <View style={styles.loopCardBody}>
+                  <Text style={styles.loopCardTitle} numberOfLines={2}>
+                    {loop.title}
+                  </Text>
+                  <View style={styles.loopCardMeta}>
+                    <View style={styles.loopCardBadge}>
+                      <Text style={styles.loopCardBadgeText}>
+                        {statusLabel(loop.status)}
+                      </Text>
+                    </View>
+                    {loop.relationshipType ? (
+                      <View
+                        style={[
+                          styles.loopCardBadge,
+                          styles.loopCardBadgeMuted,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.loopCardBadgeText,
+                            styles.loopCardBadgeMutedText,
+                          ]}
+                        >
+                          {loop.relationshipType}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={colors.mutedForeground}
+                  style={styles.loopCardChevron}
+                />
+              </View>
+            </Pressable>
+          ))
+        )}
+
+        <View style={styles.divider} />
+
+        {/* Quick tools — secondary */}
+        <Text style={styles.toolsSectionLabel}>Quick tools</Text>
 
         {TOOL_LIST.map((tool: Tool) => (
           <Pressable

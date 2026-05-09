@@ -24,6 +24,8 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="coach/[tool]" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen name="loop/new" options={{ animation: "slide_from_bottom" }} />
+      <Stack.Screen name="loop/[id]" options={{ animation: "slide_from_right" }} />
     </Stack>
   );
 }
