@@ -190,7 +190,7 @@ export default function RitualsScreen() {
 
         <View style={styles.modeBadge}>
           <Feather name="activity" size={11} color={colors.primary} />
-          <Text style={styles.modeBadgeText}>No active loop</Text>
+          <Text style={styles.modeBadgeText}>Maintenance Mode</Text>
         </View>
 
         {MAINTENANCE_CARDS.map((card) => {
