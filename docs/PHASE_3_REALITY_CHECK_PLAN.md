@@ -116,7 +116,7 @@ Update this table as work lands.
 | 3.0 Front-door/doc sync | Verified | ChatGPT/Codex | README and replit.md link the active Phase 3 plan and context-envelope spec. |
 | 3.1 Backend audit + route contract plan | Verified | Codex | Backend audit saved in `docs/PHASE_3_1_BACKEND_AUDIT.md`; route/codegen/test ownership verified before route work. |
 | 3.2 Backend Reality Check route | Verified | Codex | Bounded route, strict schema, context helpers, OpenAPI/codegen, and backend tests shipped. |
-| 3.3 Mobile context-envelope builder | Planned | Codex | Add explicit context builder/client function, no UI redesign. |
+| 3.3 Mobile context-envelope builder | Verified | Codex | Explicit Reality Check context builder/client added, no UI redesign. |
 | 3.4 Start Loop UX + initial CTA | Planned | Replit Agent | Simplify form, add Get Perspective, save result into Loop. |
 | 3.5 Ongoing Loop guidance polish | Planned | Replit Agent/Codex | Add Loop-level follow-up using Reality Check route, still bounded. |
 | 3.6 Phase closeout | Planned | ChatGPT/Codex | Docs/status update, drift check, App Store/privacy copy check. |
@@ -393,6 +393,16 @@ Likely files:
 - Add `sendRealityCheck(envelope)` or similar explicit function.
 - Do not alter standalone `sendCoach(tool, text)` behavior.
 
+### Implementation contract
+
+- Add `artifacts/wife-chat-mobile/lib/coachContext.ts` with a pure `buildRealityCheckEnvelope({ loop, requestText, platform })` helper.
+- The builder accepts only the current `Loop`, the current request text, and optional platform metadata.
+- The builder must not import `storage.ts`, read AsyncStorage, import backend code, import native keyboard code, or serialize unrelated local data.
+- V1 sends only `request.text`, bounded current Loop fields, bounded recent messages from that Loop, optional compact prior artifact summary from that Loop, and mobile `clientMeta`.
+- V1 deliberately omits User Communication Profile, Voice Profile, Relationship Profile body, saved lessons, unrelated Loops, all local storage, secrets, host-app content, and native keyboard data.
+- Add an explicit `sendRealityCheck(envelope)` client in `artifacts/wife-chat-mobile/lib/coach.ts` using the existing mobile coach networking/error pattern.
+- Keep `sendCoach(tool, text)` unchanged so existing quick tools remain text-only until deliberately migrated.
+
 ### Bounds
 
 Follow `AI_CONTEXT_ENVELOPE_SPEC.md` limits:
@@ -419,6 +429,32 @@ Manual/code review checks:
 - context builder does not send all Loops
 - unrelated profiles/lessons are not included
 - existing quick tools still use existing path
+
+### Implementation note
+
+Verified 2026-05-10 from `C:\dev\WifeChat`.
+
+Files changed:
+
+- `artifacts/wife-chat-mobile/lib/coachContext.ts`
+- `artifacts/wife-chat-mobile/lib/coach.ts`
+- `docs/PHASE_3_REALITY_CHECK_PLAN.md`
+
+What shipped:
+
+- Added pure `buildRealityCheckEnvelope({ loop, requestText, platform })` using generated `RealityCheckRequest` type exports.
+- The builder includes only the current Loop, bounded current Loop fields, bounded recent messages from that Loop, an optional compact prior artifact summary from that Loop, and mobile `clientMeta`.
+- The builder omits User Communication Profile, Voice Profile, Relationship Profile body, saved lessons, unrelated Loops, all local storage, host-app content, secrets, backend code, and native keyboard code.
+- Added explicit `sendRealityCheck(envelope)` using the existing mobile coach networking/error style.
+- Kept existing `sendCoach(tool, text)` behavior unchanged.
+
+Checks run:
+
+- `corepack pnpm --filter @workspace/wife-chat-mobile run typecheck` passed.
+- Mobile/native secret scan found only existing user-facing privacy copy and a native keyboard guardrail comment.
+- Mobile app/lib logging and analytics scan returned no matches.
+- Generic route scan found only docs and backend absence tests for `/api/chat` and `/api/coach/session`.
+- Focused builder/client scan found no storage, AsyncStorage, backend, native keyboard, secret, or generic route references.
 
 ## Subphase 3.4 — Start Loop UX + initial CTA
 

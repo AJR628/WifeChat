@@ -1,4 +1,8 @@
 import type { ToolKey } from "@/constants/tools";
+import type {
+  RealityCheckEnvelope,
+  RealityCheckRequest,
+} from "@workspace/api-client-react";
 
 const DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
 
@@ -43,6 +47,12 @@ type CheckInResult = {
 };
 
 type CoachResult = BeforeSendResult | RepairResult | CheckInResult;
+type RealityCheckResponseData = {
+  tool?: string;
+  result?: RealityCheckEnvelope["result"];
+  safety?: RealityCheckEnvelope["safety"];
+  error?: string;
+};
 
 function buildBody(tool: SupportedCoachTool, text: string): Record<string, string> {
   switch (tool) {
@@ -129,4 +139,44 @@ export async function sendCoach(tool: SupportedCoachTool, text: string): Promise
     throw new CoachError("Empty response from server.", 502);
   }
   return formatResult(tool, data.result);
+}
+
+export async function sendRealityCheck(
+  envelope: RealityCheckRequest,
+): Promise<RealityCheckEnvelope> {
+  if (!DOMAIN) {
+    throw new CoachError("App is not configured for the assistant.", 0);
+  }
+  const url = `https://${DOMAIN}/api/coach/reality-check`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(envelope),
+    });
+  } catch {
+    throw new CoachError("Network error. Check your connection and try again.", 0);
+  }
+
+  let data: RealityCheckResponseData = {};
+  try {
+    data = await res.json();
+  } catch {
+    /* noop */
+  }
+
+  if (!res.ok) {
+    throw new CoachError(data.error || `Request failed (${res.status})`, res.status);
+  }
+  if (data.tool !== "reality-check" || !data.result) {
+    throw new CoachError("Empty response from server.", 502);
+  }
+
+  return {
+    tool: "reality-check",
+    result: data.result,
+    ...(data.safety ? { safety: data.safety } : {}),
+  };
 }
