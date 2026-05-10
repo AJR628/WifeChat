@@ -311,7 +311,7 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.infoText}>
             Loops · coach results · messages · tone preference. Nothing is
-            synced to a cloud account in this prototype. Clearing removes
+            synced to a cloud account in this version. Clearing removes
             everything stored by WifeChat on this device.
           </Text>
         </View>
@@ -347,7 +347,7 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.infoText}>
             Not therapy, not crisis support, not a way to track, score, or
-            diagnose your partner. If you are in danger or in crisis, please
+            diagnose another person. If you are in danger or in crisis, please
             reach a qualified professional. In the US: 988 (Suicide & Crisis
             Lifeline) or 1-800-799-7233 (National Domestic Violence Hotline).
             If you are outside the US, please use your local emergency or
