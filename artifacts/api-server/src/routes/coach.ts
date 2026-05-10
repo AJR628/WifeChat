@@ -1,5 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import OpenAI from "openai";
+import { RealityCheckResponse as RealityCheckResponseSchema } from "@workspace/api-zod";
+import { parseRealityCheckEnvelope } from "../coach/contextEnvelope";
+import { buildRealityCheckUserPrompt } from "../coach/promptContext";
 import { checkRateLimit, clientKey } from "../lib/rateLimit";
 import { safeErrorMeta } from "../lib/safeLog";
 import { buildSafetyResult, detectSafetyTripwire } from "../lib/safety";
@@ -309,6 +312,74 @@ Return JSON for the DailyCheckIn schema. Keep partnerMessage natural enough to a
   },
 };
 
+const REALITY_CHECK_RESULT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "whatSeemsUnderstandable",
+    "whatToSlowDownOn",
+    "factsVsAssumptions",
+    "boundaryOrSafetyCheck",
+    "likelyNeed",
+    "nextBestStep",
+    "suggestedPath",
+  ],
+  properties: {
+    whatSeemsUnderstandable: {
+      type: "string",
+      description: "What makes emotional sense about the user's reaction. Validates the feeling without declaring the interpretation correct.",
+    },
+    whatToSlowDownOn: {
+      type: "string",
+      description: "One interpretation, assumption, or escalation risk to slow down on.",
+    },
+    factsVsAssumptions: {
+      type: "array",
+      minItems: 2,
+      maxItems: 6,
+      items: { type: "string" },
+      description: "Short bullets separating known facts, assumptions, and what to check next.",
+    },
+    boundaryOrSafetyCheck: {
+      type: "string",
+      description: "A grounded boundary or safety check. Include support guidance if safety may be involved.",
+    },
+    likelyNeed: {
+      type: "string",
+      description: "The likely need underneath the reaction, hedged and non-diagnostic.",
+    },
+    nextBestStep: {
+      type: "string",
+      description: "One concrete next step that reduces spiraling and preserves safety.",
+    },
+    suggestedPath: {
+      type: "string",
+      enum: ["wait", "text", "talk", "repair", "boundary", "get-support", "let-go"],
+      description: "The most fitting next path.",
+    },
+    optionalDraft: {
+      type: "string",
+      description: "Optional short message draft only if communication is appropriate and safe.",
+    },
+  },
+};
+
+const REALITY_CHECK_RESULT_KEYS = new Set([
+  "whatSeemsUnderstandable",
+  "whatToSlowDownOn",
+  "factsVsAssumptions",
+  "boundaryOrSafetyCheck",
+  "likelyNeed",
+  "nextBestStep",
+  "suggestedPath",
+  "optionalDraft",
+]);
+
+function realityCheckResultHasOnlyKnownKeys(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  return Object.keys(value).every((key) => REALITY_CHECK_RESULT_KEYS.has(key));
+}
+
 // Phase 2: lazy singleton OpenAI client. Constructed on first successful
 // credential read so the server does not crash at import time if env vars
 // are missing. Reused across requests so the SDK can pool connections and
@@ -534,9 +605,135 @@ async function runTool(tool: ToolDef, req: Request, res: Response): Promise<void
   }
 }
 
+async function runRealityCheck(req: Request, res: Response): Promise<void> {
+  // Same order as the existing coach tools:
+  // kill switch (router middleware) -> passcode -> strict validation
+  // -> SAFETY INTERCEPT -> rate limit -> OpenAI.
+  if (!passcodeOk(req, res)) return;
+
+  const validation = parseRealityCheckEnvelope(req.body);
+  if (!validation.ok) {
+    res.status(400).json({ error: validation.error });
+    return;
+  }
+
+  req.log.info(
+    {
+      event: "coach_context_received",
+      tool: "reality-check",
+      requestId: req.id,
+      ...validation.metadata,
+    },
+    "Coach: bounded Reality Check context received",
+  );
+
+  for (const value of validation.safetyTexts) {
+    const verdict = detectSafetyTripwire(value);
+    if (verdict.tripped) {
+      req.log.info(
+        {
+          event: "safety_intercept",
+          category: verdict.category,
+          tool: "reality-check",
+          requestId: req.id,
+        },
+        "Coach: safety tripwire fired; returning static safety response",
+      );
+      res.json({
+        tool: "reality-check",
+        result: buildSafetyResult("reality-check", verdict.category),
+        safety: { intercepted: true, category: verdict.category },
+      });
+      return;
+    }
+  }
+
+  if (!rateLimitOk(req, res)) return;
+
+  const openai = getOpenAI(req, res);
+  if (!openai) return;
+
+  const userPrompt = buildRealityCheckUserPrompt(validation.data);
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      max_completion_tokens: MAX_COMPLETION_TOKENS,
+      messages: [
+        { role: "system", content: SAFETY_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "RealityCheckResult",
+          strict: true,
+          schema: REALITY_CHECK_RESULT_SCHEMA,
+        },
+      },
+    });
+
+    const raw = completion.choices?.[0]?.message?.content ?? "";
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      req.log.error(
+        { event: "coach_model_non_json", tool: "reality-check", requestId: req.id },
+        "Coach: model returned non-JSON",
+      );
+      res.status(502).json({ error: "The assistant returned an unexpected response. Try again." });
+      return;
+    }
+
+    if (!realityCheckResultHasOnlyKnownKeys(parsed)) {
+      req.log.error(
+        { event: "coach_model_invalid_shape", tool: "reality-check", requestId: req.id },
+        "Coach: model output contains unknown Reality Check fields",
+      );
+      res.status(502).json({ error: "The assistant returned an unexpected response. Try again." });
+      return;
+    }
+
+    const response = RealityCheckResponseSchema.safeParse({
+      tool: "reality-check",
+      result: parsed,
+    });
+    if (!response.success) {
+      req.log.error(
+        { event: "coach_model_invalid_shape", tool: "reality-check", requestId: req.id },
+        "Coach: model output is not a valid Reality Check result",
+      );
+      res.status(502).json({ error: "The assistant returned an unexpected response. Try again." });
+      return;
+    }
+
+    res.json(response.data);
+  } catch (err: unknown) {
+    const meta = safeErrorMeta(err);
+    const status = meta.status;
+    req.log.error(
+      {
+        event: "coach_provider_error",
+        tool: "reality-check",
+        requestId: req.id,
+        errorName: meta.errorName,
+        errorStatus: status,
+      },
+      "Coach: OpenAI call failed",
+    );
+    if (status === 429) {
+      res.status(503).json({ error: "The assistant is busy right now. Please try again in a moment." });
+      return;
+    }
+    res.status(502).json({ error: "Failed to reach the assistant. Please try again." });
+  }
+}
+
 router.post("/coach/before-send", (req, res) => runTool(TOOLS["before-send"], req, res));
 router.post("/coach/repair", (req, res) => runTool(TOOLS.repair, req, res));
 router.post("/coach/planner", (req, res) => runTool(TOOLS.planner, req, res));
 router.post("/coach/checkin", (req, res) => runTool(TOOLS.checkin, req, res));
+router.post("/coach/reality-check", (req, res) => runRealityCheck(req, res));
 
 export default router;

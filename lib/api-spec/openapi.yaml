@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: coach
+    description: Bounded relationship coaching operations
 paths:
   /healthz:
     get:
@@ -24,13 +26,368 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /coach/reality-check:
+    post:
+      operationId: realityCheck
+      tags: [coach]
+      summary: Reality Check
+      description: Returns bounded, schema-shaped perspective for one relationship Loop moment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RealityCheckRequest"
+      responses:
+        "200":
+          description: Reality Check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RealityCheckEnvelope"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized when APP_PASSCODE is configured and missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Assistant is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Assistant/provider failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Assistant temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
       type: object
+      additionalProperties: false
       properties:
         status:
           type: string
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+        requestId:
+          type: string
+      required:
+        - error
+
+    RealityCheckRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          const: reality-check
+        request:
+          $ref: "#/components/schemas/RealityCheckCurrentRequest"
+        context:
+          $ref: "#/components/schemas/AiContext"
+        clientMeta:
+          $ref: "#/components/schemas/AiClientMeta"
+      required:
+        - action
+        - request
+
+    RealityCheckCurrentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+      required:
+        - text
+
+    AiContext:
+      type: object
+      additionalProperties: false
+      properties:
+        userCommunicationProfile:
+          $ref: "#/components/schemas/UserCommunicationProfileContext"
+        voiceProfile:
+          $ref: "#/components/schemas/VoiceProfileContext"
+        relationshipProfile:
+          $ref: "#/components/schemas/RelationshipProfileContext"
+        loopContext:
+          $ref: "#/components/schemas/LoopContext"
+        savedLessons:
+          type: array
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/SavedLessonContext"
+
+    UserCommunicationProfileContext:
+      type: object
+      additionalProperties: false
+      properties:
+        conflictPatterns:
+          $ref: "#/components/schemas/ShortStringArray"
+        growthGoals:
+          $ref: "#/components/schemas/ShortStringArray"
+        coachingPreferences:
+          $ref: "#/components/schemas/ShortStringArray"
+        userRules:
+          $ref: "#/components/schemas/ShortStringArray"
+
+    VoiceProfileContext:
+      type: object
+      additionalProperties: false
+      properties:
+        styleNotes:
+          $ref: "#/components/schemas/ShortStringArray"
+        messageLengthPreference:
+          type: string
+          enum: [short, medium, detailed]
+        warmthPreference:
+          type: string
+          enum: [warmer, balanced, direct]
+        phrasesToUse:
+          $ref: "#/components/schemas/ShortStringArray"
+        phrasesToAvoid:
+          $ref: "#/components/schemas/ShortStringArray"
+
+    RelationshipProfileContext:
+      type: object
+      additionalProperties: false
+      properties:
+        relationshipProfileId:
+          type: string
+          maxLength: 200
+        relationshipType:
+          type: string
+          maxLength: 500
+        preferredTone:
+          type: string
+          maxLength: 1000
+        whatHelpsCommunication:
+          $ref: "#/components/schemas/ShortStringArray"
+        whatUsuallyMakesThingsWorse:
+          $ref: "#/components/schemas/ShortStringArray"
+        currentContext:
+          type: string
+          maxLength: 2000
+        commonPatterns:
+          $ref: "#/components/schemas/ShortStringArray"
+        bestRepairStyle:
+          type: string
+          maxLength: 1000
+        savedLessonSummaries:
+          $ref: "#/components/schemas/ShortStringArray"
+
+    LoopContext:
+      type: object
+      additionalProperties: false
+      properties:
+        loopId:
+          type: string
+          maxLength: 200
+        title:
+          type: string
+          maxLength: 500
+        relationshipProfileId:
+          type: string
+          maxLength: 200
+        relationshipType:
+          type: string
+          maxLength: 500
+        stage:
+          type: string
+          enum: [untangle, decide, prepare, act, close]
+        status:
+          type: string
+          enum: [open, paused, needsFollowUp, partlyResolved, resolved, letGo]
+        sourceTool:
+          $ref: "#/components/schemas/LoopSourceTool"
+        whatHappened:
+          type: string
+          maxLength: 4000
+        emotion:
+          type: string
+          maxLength: 1000
+        interpretation:
+          type: string
+          maxLength: 2000
+        need:
+          type: string
+          maxLength: 2000
+        consideringDoing:
+          type: string
+          maxLength: 2000
+        nextStep:
+          type: string
+          maxLength: 2000
+        outcome:
+          type: string
+          maxLength: 2000
+        recentMessages:
+          type: array
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/LoopMessageContext"
+        priorArtifactsSummary:
+          type: string
+          maxLength: 1000
+
+    LoopMessageContext:
+      type: object
+      additionalProperties: false
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        sourceTool:
+          $ref: "#/components/schemas/LoopSourceTool"
+        createdAt:
+          type: number
+      required:
+        - role
+        - content
+
+    SavedLessonContext:
+      type: object
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        relationshipProfileId:
+          type: string
+          maxLength: 200
+        loopId:
+          type: string
+          maxLength: 200
+      required:
+        - text
+
+    AiClientMeta:
+      type: object
+      additionalProperties: false
+      properties:
+        platform:
+          type: string
+          enum: [ios, android, web]
+        sourceSurface:
+          type: string
+          enum: [mobile, web, keyboard]
+        localContextVersion:
+          type: number
+          const: 1
+
+    ShortStringArray:
+      type: array
+      maxItems: 8
+      items:
+        type: string
+        minLength: 1
+        maxLength: 1000
+
+    LoopSourceTool:
+      type: string
+      enum: [reality-check, before-send, repair, planner, checkin, practice]
+
+    RealityCheckEnvelope:
+      type: object
+      additionalProperties: false
+      properties:
+        tool:
+          type: string
+          const: reality-check
+        result:
+          $ref: "#/components/schemas/RealityCheckResult"
+        safety:
+          $ref: "#/components/schemas/SafetyMetadata"
+      required:
+        - tool
+        - result
+
+    RealityCheckResult:
+      type: object
+      additionalProperties: false
+      properties:
+        whatSeemsUnderstandable:
+          type: string
+          minLength: 1
+        whatToSlowDownOn:
+          type: string
+          minLength: 1
+        factsVsAssumptions:
+          type: array
+          minItems: 1
+          maxItems: 6
+          items:
+            type: string
+            minLength: 1
+        boundaryOrSafetyCheck:
+          type: string
+          minLength: 1
+        likelyNeed:
+          type: string
+          minLength: 1
+        nextBestStep:
+          type: string
+          minLength: 1
+        suggestedPath:
+          type: string
+          enum: [wait, text, talk, repair, boundary, get-support, let-go]
+        optionalDraft:
+          type: string
+      required:
+        - whatSeemsUnderstandable
+        - whatToSlowDownOn
+        - factsVsAssumptions
+        - boundaryOrSafetyCheck
+        - likelyNeed
+        - nextBestStep
+        - suggestedPath
+
+    SafetyMetadata:
+      type: object
+      additionalProperties: false
+      properties:
+        intercepted:
+          type: boolean
+          const: true
+        category:
+          type: string
+          enum: [self_harm, violence, coercion, stalking, fear, threats]
+      required:
+        - intercepted
+        - category

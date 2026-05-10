@@ -122,4 +122,30 @@ describe("buildSafetyResult", () => {
       assertNonEmptyString(r[k], k);
     }
   });
+
+  it("reality-check returns all required schema fields, all non-empty", () => {
+    const r = buildSafetyResult("reality-check", category) as {
+      whatSeemsUnderstandable: string;
+      whatToSlowDownOn: string;
+      factsVsAssumptions: string[];
+      boundaryOrSafetyCheck: string;
+      likelyNeed: string;
+      nextBestStep: string;
+      suggestedPath: string;
+    };
+    for (const k of [
+      "whatSeemsUnderstandable",
+      "whatToSlowDownOn",
+      "boundaryOrSafetyCheck",
+      "likelyNeed",
+      "nextBestStep",
+    ] as const) {
+      assertNonEmptyString(r[k], k);
+    }
+    assert.ok(r.factsVsAssumptions.length > 0, "factsVsAssumptions should not be empty");
+    for (const [i, item] of r.factsVsAssumptions.entries()) {
+      assertNonEmptyString(item, `factsVsAssumptions[${i}]`);
+    }
+    assert.equal(r.suggestedPath, "get-support");
+  });
 });

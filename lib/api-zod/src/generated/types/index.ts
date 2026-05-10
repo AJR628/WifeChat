@@ -6,4 +6,29 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./aiClientMeta";
+export * from "./aiClientMetaPlatform";
+export * from "./aiClientMetaSourceSurface";
+export * from "./aiContext";
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./loopContext";
+export * from "./loopContextStage";
+export * from "./loopContextStatus";
+export * from "./loopMessageContext";
+export * from "./loopMessageContextRole";
+export * from "./loopSourceTool";
+export * from "./realityCheckCurrentRequest";
+export * from "./realityCheckEnvelope";
+export * from "./realityCheckRequest";
+export * from "./realityCheckResult";
+export * from "./realityCheckResultSuggestedPath";
+export * from "./relationshipProfileContext";
+export * from "./safetyMetadata";
+export * from "./safetyMetadataCategory";
+export * from "./savedLessonContext";
+export * from "./shortStringArray";
+export * from "./userCommunicationProfileContext";
+export * from "./voiceProfileContext";
+export * from "./voiceProfileContextMessageLengthPreference";
+export * from "./voiceProfileContextWarmthPreference";

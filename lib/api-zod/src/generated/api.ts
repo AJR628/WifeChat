@@ -14,3 +14,443 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Returns bounded, schema-shaped perspective for one relationship Loop moment.
+ * @summary Reality Check
+ */
+export const realityCheckBodyRequestTextMax = 4000;
+
+export const realityCheckBodyContextUserCommunicationProfileConflictPatternsItemMax = 1000;
+
+export const realityCheckBodyContextUserCommunicationProfileConflictPatternsMax = 8;
+
+export const realityCheckBodyContextUserCommunicationProfileGrowthGoalsItemMax = 1000;
+
+export const realityCheckBodyContextUserCommunicationProfileGrowthGoalsMax = 8;
+
+export const realityCheckBodyContextUserCommunicationProfileCoachingPreferencesItemMax = 1000;
+
+export const realityCheckBodyContextUserCommunicationProfileCoachingPreferencesMax = 8;
+
+export const realityCheckBodyContextUserCommunicationProfileUserRulesItemMax = 1000;
+
+export const realityCheckBodyContextUserCommunicationProfileUserRulesMax = 8;
+
+export const realityCheckBodyContextVoiceProfileStyleNotesItemMax = 1000;
+
+export const realityCheckBodyContextVoiceProfileStyleNotesMax = 8;
+
+export const realityCheckBodyContextVoiceProfilePhrasesToUseItemMax = 1000;
+
+export const realityCheckBodyContextVoiceProfilePhrasesToUseMax = 8;
+
+export const realityCheckBodyContextVoiceProfilePhrasesToAvoidItemMax = 1000;
+
+export const realityCheckBodyContextVoiceProfilePhrasesToAvoidMax = 8;
+
+export const realityCheckBodyContextRelationshipProfileRelationshipProfileIdMax = 200;
+
+export const realityCheckBodyContextRelationshipProfileRelationshipTypeMax = 500;
+
+export const realityCheckBodyContextRelationshipProfilePreferredToneMax = 1000;
+
+export const realityCheckBodyContextRelationshipProfileWhatHelpsCommunicationItemMax = 1000;
+
+export const realityCheckBodyContextRelationshipProfileWhatHelpsCommunicationMax = 8;
+
+export const realityCheckBodyContextRelationshipProfileWhatUsuallyMakesThingsWorseItemMax = 1000;
+
+export const realityCheckBodyContextRelationshipProfileWhatUsuallyMakesThingsWorseMax = 8;
+
+export const realityCheckBodyContextRelationshipProfileCurrentContextMax = 2000;
+
+export const realityCheckBodyContextRelationshipProfileCommonPatternsItemMax = 1000;
+
+export const realityCheckBodyContextRelationshipProfileCommonPatternsMax = 8;
+
+export const realityCheckBodyContextRelationshipProfileBestRepairStyleMax = 1000;
+
+export const realityCheckBodyContextRelationshipProfileSavedLessonSummariesItemMax = 1000;
+
+export const realityCheckBodyContextRelationshipProfileSavedLessonSummariesMax = 8;
+
+export const realityCheckBodyContextLoopContextLoopIdMax = 200;
+
+export const realityCheckBodyContextLoopContextTitleMax = 500;
+
+export const realityCheckBodyContextLoopContextRelationshipProfileIdMax = 200;
+
+export const realityCheckBodyContextLoopContextRelationshipTypeMax = 500;
+
+export const realityCheckBodyContextLoopContextWhatHappenedMax = 4000;
+
+export const realityCheckBodyContextLoopContextEmotionMax = 1000;
+
+export const realityCheckBodyContextLoopContextInterpretationMax = 2000;
+
+export const realityCheckBodyContextLoopContextNeedMax = 2000;
+
+export const realityCheckBodyContextLoopContextConsideringDoingMax = 2000;
+
+export const realityCheckBodyContextLoopContextNextStepMax = 2000;
+
+export const realityCheckBodyContextLoopContextOutcomeMax = 2000;
+
+export const realityCheckBodyContextLoopContextRecentMessagesItemContentMax = 2000;
+
+export const realityCheckBodyContextLoopContextRecentMessagesMax = 12;
+
+export const realityCheckBodyContextLoopContextPriorArtifactsSummaryMax = 1000;
+
+export const realityCheckBodyContextSavedLessonsItemTextMax = 1000;
+
+export const realityCheckBodyContextSavedLessonsItemRelationshipProfileIdMax = 200;
+
+export const realityCheckBodyContextSavedLessonsItemLoopIdMax = 200;
+
+export const realityCheckBodyContextSavedLessonsMax = 5;
+
+export const RealityCheckBody = zod.object({
+  action: zod.literal("reality-check"),
+  request: zod.object({
+    text: zod.string().min(1).max(realityCheckBodyRequestTextMax),
+  }),
+  context: zod
+    .object({
+      userCommunicationProfile: zod
+        .object({
+          conflictPatterns: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(
+                  realityCheckBodyContextUserCommunicationProfileConflictPatternsItemMax,
+                ),
+            )
+            .max(
+              realityCheckBodyContextUserCommunicationProfileConflictPatternsMax,
+            )
+            .optional(),
+          growthGoals: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(
+                  realityCheckBodyContextUserCommunicationProfileGrowthGoalsItemMax,
+                ),
+            )
+            .max(realityCheckBodyContextUserCommunicationProfileGrowthGoalsMax)
+            .optional(),
+          coachingPreferences: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(
+                  realityCheckBodyContextUserCommunicationProfileCoachingPreferencesItemMax,
+                ),
+            )
+            .max(
+              realityCheckBodyContextUserCommunicationProfileCoachingPreferencesMax,
+            )
+            .optional(),
+          userRules: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(
+                  realityCheckBodyContextUserCommunicationProfileUserRulesItemMax,
+                ),
+            )
+            .max(realityCheckBodyContextUserCommunicationProfileUserRulesMax)
+            .optional(),
+        })
+        .optional(),
+      voiceProfile: zod
+        .object({
+          styleNotes: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(realityCheckBodyContextVoiceProfileStyleNotesItemMax),
+            )
+            .max(realityCheckBodyContextVoiceProfileStyleNotesMax)
+            .optional(),
+          messageLengthPreference: zod
+            .enum(["short", "medium", "detailed"])
+            .optional(),
+          warmthPreference: zod
+            .enum(["warmer", "balanced", "direct"])
+            .optional(),
+          phrasesToUse: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(realityCheckBodyContextVoiceProfilePhrasesToUseItemMax),
+            )
+            .max(realityCheckBodyContextVoiceProfilePhrasesToUseMax)
+            .optional(),
+          phrasesToAvoid: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(realityCheckBodyContextVoiceProfilePhrasesToAvoidItemMax),
+            )
+            .max(realityCheckBodyContextVoiceProfilePhrasesToAvoidMax)
+            .optional(),
+        })
+        .optional(),
+      relationshipProfile: zod
+        .object({
+          relationshipProfileId: zod
+            .string()
+            .max(
+              realityCheckBodyContextRelationshipProfileRelationshipProfileIdMax,
+            )
+            .optional(),
+          relationshipType: zod
+            .string()
+            .max(realityCheckBodyContextRelationshipProfileRelationshipTypeMax)
+            .optional(),
+          preferredTone: zod
+            .string()
+            .max(realityCheckBodyContextRelationshipProfilePreferredToneMax)
+            .optional(),
+          whatHelpsCommunication: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(
+                  realityCheckBodyContextRelationshipProfileWhatHelpsCommunicationItemMax,
+                ),
+            )
+            .max(
+              realityCheckBodyContextRelationshipProfileWhatHelpsCommunicationMax,
+            )
+            .optional(),
+          whatUsuallyMakesThingsWorse: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(
+                  realityCheckBodyContextRelationshipProfileWhatUsuallyMakesThingsWorseItemMax,
+                ),
+            )
+            .max(
+              realityCheckBodyContextRelationshipProfileWhatUsuallyMakesThingsWorseMax,
+            )
+            .optional(),
+          currentContext: zod
+            .string()
+            .max(realityCheckBodyContextRelationshipProfileCurrentContextMax)
+            .optional(),
+          commonPatterns: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(
+                  realityCheckBodyContextRelationshipProfileCommonPatternsItemMax,
+                ),
+            )
+            .max(realityCheckBodyContextRelationshipProfileCommonPatternsMax)
+            .optional(),
+          bestRepairStyle: zod
+            .string()
+            .max(realityCheckBodyContextRelationshipProfileBestRepairStyleMax)
+            .optional(),
+          savedLessonSummaries: zod
+            .array(
+              zod
+                .string()
+                .min(1)
+                .max(
+                  realityCheckBodyContextRelationshipProfileSavedLessonSummariesItemMax,
+                ),
+            )
+            .max(
+              realityCheckBodyContextRelationshipProfileSavedLessonSummariesMax,
+            )
+            .optional(),
+        })
+        .optional(),
+      loopContext: zod
+        .object({
+          loopId: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextLoopIdMax)
+            .optional(),
+          title: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextTitleMax)
+            .optional(),
+          relationshipProfileId: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextRelationshipProfileIdMax)
+            .optional(),
+          relationshipType: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextRelationshipTypeMax)
+            .optional(),
+          stage: zod
+            .enum(["untangle", "decide", "prepare", "act", "close"])
+            .optional(),
+          status: zod
+            .enum([
+              "open",
+              "paused",
+              "needsFollowUp",
+              "partlyResolved",
+              "resolved",
+              "letGo",
+            ])
+            .optional(),
+          sourceTool: zod
+            .enum([
+              "reality-check",
+              "before-send",
+              "repair",
+              "planner",
+              "checkin",
+              "practice",
+            ])
+            .optional(),
+          whatHappened: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextWhatHappenedMax)
+            .optional(),
+          emotion: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextEmotionMax)
+            .optional(),
+          interpretation: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextInterpretationMax)
+            .optional(),
+          need: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextNeedMax)
+            .optional(),
+          consideringDoing: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextConsideringDoingMax)
+            .optional(),
+          nextStep: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextNextStepMax)
+            .optional(),
+          outcome: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextOutcomeMax)
+            .optional(),
+          recentMessages: zod
+            .array(
+              zod.object({
+                role: zod.enum(["user", "assistant"]),
+                content: zod
+                  .string()
+                  .min(1)
+                  .max(
+                    realityCheckBodyContextLoopContextRecentMessagesItemContentMax,
+                  ),
+                sourceTool: zod
+                  .enum([
+                    "reality-check",
+                    "before-send",
+                    "repair",
+                    "planner",
+                    "checkin",
+                    "practice",
+                  ])
+                  .optional(),
+                createdAt: zod.number().optional(),
+              }),
+            )
+            .max(realityCheckBodyContextLoopContextRecentMessagesMax)
+            .optional(),
+          priorArtifactsSummary: zod
+            .string()
+            .max(realityCheckBodyContextLoopContextPriorArtifactsSummaryMax)
+            .optional(),
+        })
+        .optional(),
+      savedLessons: zod
+        .array(
+          zod.object({
+            text: zod
+              .string()
+              .min(1)
+              .max(realityCheckBodyContextSavedLessonsItemTextMax),
+            relationshipProfileId: zod
+              .string()
+              .max(
+                realityCheckBodyContextSavedLessonsItemRelationshipProfileIdMax,
+              )
+              .optional(),
+            loopId: zod
+              .string()
+              .max(realityCheckBodyContextSavedLessonsItemLoopIdMax)
+              .optional(),
+          }),
+        )
+        .max(realityCheckBodyContextSavedLessonsMax)
+        .optional(),
+    })
+    .optional(),
+  clientMeta: zod
+    .object({
+      platform: zod.enum(["ios", "android", "web"]).optional(),
+      sourceSurface: zod.enum(["mobile", "web", "keyboard"]).optional(),
+      localContextVersion: zod.number().optional(),
+    })
+    .optional(),
+});
+
+export const realityCheckResponseResultFactsVsAssumptionsMax = 6;
+
+export const RealityCheckResponse = zod.object({
+  tool: zod.literal("reality-check"),
+  result: zod.object({
+    whatSeemsUnderstandable: zod.string().min(1),
+    whatToSlowDownOn: zod.string().min(1),
+    factsVsAssumptions: zod
+      .array(zod.string().min(1))
+      .min(1)
+      .max(realityCheckResponseResultFactsVsAssumptionsMax),
+    boundaryOrSafetyCheck: zod.string().min(1),
+    likelyNeed: zod.string().min(1),
+    nextBestStep: zod.string().min(1),
+    suggestedPath: zod.enum([
+      "wait",
+      "text",
+      "talk",
+      "repair",
+      "boundary",
+      "get-support",
+      "let-go",
+    ]),
+    optionalDraft: zod.string().optional(),
+  }),
+  safety: zod
+    .object({
+      intercepted: zod.boolean(),
+      category: zod.enum([
+        "self_harm",
+        "violence",
+        "coercion",
+        "stalking",
+        "fear",
+        "threats",
+      ]),
+    })
+    .optional(),
+});

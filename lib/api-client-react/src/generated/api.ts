@@ -5,18 +5,26 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  ErrorResponse,
+  HealthStatus,
+  RealityCheckEnvelope,
+  RealityCheckRequest,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +107,90 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Returns bounded, schema-shaped perspective for one relationship Loop moment.
+ * @summary Reality Check
+ */
+export const getRealityCheckUrl = () => {
+  return `/api/coach/reality-check`;
+};
+
+export const realityCheck = async (
+  realityCheckRequest: RealityCheckRequest,
+  options?: RequestInit,
+): Promise<RealityCheckEnvelope> => {
+  return customFetch<RealityCheckEnvelope>(getRealityCheckUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(realityCheckRequest),
+  });
+};
+
+export const getRealityCheckMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof realityCheck>>,
+    TError,
+    { data: BodyType<RealityCheckRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof realityCheck>>,
+  TError,
+  { data: BodyType<RealityCheckRequest> },
+  TContext
+> => {
+  const mutationKey = ["realityCheck"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof realityCheck>>,
+    { data: BodyType<RealityCheckRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return realityCheck(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RealityCheckMutationResult = NonNullable<
+  Awaited<ReturnType<typeof realityCheck>>
+>;
+export type RealityCheckMutationBody = BodyType<RealityCheckRequest>;
+export type RealityCheckMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Reality Check
+ */
+export const useRealityCheck = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof realityCheck>>,
+    TError,
+    { data: BodyType<RealityCheckRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof realityCheck>>,
+  TError,
+  { data: BodyType<RealityCheckRequest> },
+  TContext
+> => {
+  return useMutation(getRealityCheckMutationOptions(options));
+};

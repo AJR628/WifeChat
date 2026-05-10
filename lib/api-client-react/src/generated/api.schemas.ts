@@ -8,3 +8,265 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ErrorResponse {
+  error: string;
+  requestId?: string;
+}
+
+export interface RealityCheckCurrentRequest {
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  text: string;
+}
+
+/**
+ * @maxItems 8
+ */
+export type ShortStringArray = string[];
+
+export interface UserCommunicationProfileContext {
+  conflictPatterns?: ShortStringArray;
+  growthGoals?: ShortStringArray;
+  coachingPreferences?: ShortStringArray;
+  userRules?: ShortStringArray;
+}
+
+export type VoiceProfileContextMessageLengthPreference =
+  (typeof VoiceProfileContextMessageLengthPreference)[keyof typeof VoiceProfileContextMessageLengthPreference];
+
+export const VoiceProfileContextMessageLengthPreference = {
+  short: "short",
+  medium: "medium",
+  detailed: "detailed",
+} as const;
+
+export type VoiceProfileContextWarmthPreference =
+  (typeof VoiceProfileContextWarmthPreference)[keyof typeof VoiceProfileContextWarmthPreference];
+
+export const VoiceProfileContextWarmthPreference = {
+  warmer: "warmer",
+  balanced: "balanced",
+  direct: "direct",
+} as const;
+
+export interface VoiceProfileContext {
+  styleNotes?: ShortStringArray;
+  messageLengthPreference?: VoiceProfileContextMessageLengthPreference;
+  warmthPreference?: VoiceProfileContextWarmthPreference;
+  phrasesToUse?: ShortStringArray;
+  phrasesToAvoid?: ShortStringArray;
+}
+
+export interface RelationshipProfileContext {
+  /** @maxLength 200 */
+  relationshipProfileId?: string;
+  /** @maxLength 500 */
+  relationshipType?: string;
+  /** @maxLength 1000 */
+  preferredTone?: string;
+  whatHelpsCommunication?: ShortStringArray;
+  whatUsuallyMakesThingsWorse?: ShortStringArray;
+  /** @maxLength 2000 */
+  currentContext?: string;
+  commonPatterns?: ShortStringArray;
+  /** @maxLength 1000 */
+  bestRepairStyle?: string;
+  savedLessonSummaries?: ShortStringArray;
+}
+
+export type LoopContextStage =
+  (typeof LoopContextStage)[keyof typeof LoopContextStage];
+
+export const LoopContextStage = {
+  untangle: "untangle",
+  decide: "decide",
+  prepare: "prepare",
+  act: "act",
+  close: "close",
+} as const;
+
+export type LoopContextStatus =
+  (typeof LoopContextStatus)[keyof typeof LoopContextStatus];
+
+export const LoopContextStatus = {
+  open: "open",
+  paused: "paused",
+  needsFollowUp: "needsFollowUp",
+  partlyResolved: "partlyResolved",
+  resolved: "resolved",
+  letGo: "letGo",
+} as const;
+
+export type LoopSourceTool =
+  (typeof LoopSourceTool)[keyof typeof LoopSourceTool];
+
+export const LoopSourceTool = {
+  "reality-check": "reality-check",
+  "before-send": "before-send",
+  repair: "repair",
+  planner: "planner",
+  checkin: "checkin",
+  practice: "practice",
+} as const;
+
+export type LoopMessageContextRole =
+  (typeof LoopMessageContextRole)[keyof typeof LoopMessageContextRole];
+
+export const LoopMessageContextRole = {
+  user: "user",
+  assistant: "assistant",
+} as const;
+
+export interface LoopMessageContext {
+  role: LoopMessageContextRole;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  content: string;
+  sourceTool?: LoopSourceTool;
+  createdAt?: number;
+}
+
+export interface LoopContext {
+  /** @maxLength 200 */
+  loopId?: string;
+  /** @maxLength 500 */
+  title?: string;
+  /** @maxLength 200 */
+  relationshipProfileId?: string;
+  /** @maxLength 500 */
+  relationshipType?: string;
+  stage?: LoopContextStage;
+  status?: LoopContextStatus;
+  sourceTool?: LoopSourceTool;
+  /** @maxLength 4000 */
+  whatHappened?: string;
+  /** @maxLength 1000 */
+  emotion?: string;
+  /** @maxLength 2000 */
+  interpretation?: string;
+  /** @maxLength 2000 */
+  need?: string;
+  /** @maxLength 2000 */
+  consideringDoing?: string;
+  /** @maxLength 2000 */
+  nextStep?: string;
+  /** @maxLength 2000 */
+  outcome?: string;
+  /** @maxItems 12 */
+  recentMessages?: LoopMessageContext[];
+  /** @maxLength 1000 */
+  priorArtifactsSummary?: string;
+}
+
+export interface SavedLessonContext {
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  text: string;
+  /** @maxLength 200 */
+  relationshipProfileId?: string;
+  /** @maxLength 200 */
+  loopId?: string;
+}
+
+export interface AiContext {
+  userCommunicationProfile?: UserCommunicationProfileContext;
+  voiceProfile?: VoiceProfileContext;
+  relationshipProfile?: RelationshipProfileContext;
+  loopContext?: LoopContext;
+  /** @maxItems 5 */
+  savedLessons?: SavedLessonContext[];
+}
+
+export type AiClientMetaPlatform =
+  (typeof AiClientMetaPlatform)[keyof typeof AiClientMetaPlatform];
+
+export const AiClientMetaPlatform = {
+  ios: "ios",
+  android: "android",
+  web: "web",
+} as const;
+
+export type AiClientMetaSourceSurface =
+  (typeof AiClientMetaSourceSurface)[keyof typeof AiClientMetaSourceSurface];
+
+export const AiClientMetaSourceSurface = {
+  mobile: "mobile",
+  web: "web",
+  keyboard: "keyboard",
+} as const;
+
+export interface AiClientMeta {
+  platform?: AiClientMetaPlatform;
+  sourceSurface?: AiClientMetaSourceSurface;
+  localContextVersion?: 1;
+}
+
+export interface RealityCheckRequest {
+  action: "reality-check";
+  request: RealityCheckCurrentRequest;
+  context?: AiContext;
+  clientMeta?: AiClientMeta;
+}
+
+export type RealityCheckResultSuggestedPath =
+  (typeof RealityCheckResultSuggestedPath)[keyof typeof RealityCheckResultSuggestedPath];
+
+export const RealityCheckResultSuggestedPath = {
+  wait: "wait",
+  text: "text",
+  talk: "talk",
+  repair: "repair",
+  boundary: "boundary",
+  "get-support": "get-support",
+  "let-go": "let-go",
+} as const;
+
+export interface RealityCheckResult {
+  /** @minLength 1 */
+  whatSeemsUnderstandable: string;
+  /** @minLength 1 */
+  whatToSlowDownOn: string;
+  /**
+   * @minItems 1
+   * @maxItems 6
+   */
+  factsVsAssumptions: string[];
+  /** @minLength 1 */
+  boundaryOrSafetyCheck: string;
+  /** @minLength 1 */
+  likelyNeed: string;
+  /** @minLength 1 */
+  nextBestStep: string;
+  suggestedPath: RealityCheckResultSuggestedPath;
+  optionalDraft?: string;
+}
+
+export type SafetyMetadataCategory =
+  (typeof SafetyMetadataCategory)[keyof typeof SafetyMetadataCategory];
+
+export const SafetyMetadataCategory = {
+  self_harm: "self_harm",
+  violence: "violence",
+  coercion: "coercion",
+  stalking: "stalking",
+  fear: "fear",
+  threats: "threats",
+} as const;
+
+export interface SafetyMetadata {
+  intercepted: true;
+  category: SafetyMetadataCategory;
+}
+
+export interface RealityCheckEnvelope {
+  tool: "reality-check";
+  result: RealityCheckResult;
+  safety?: SafetyMetadata;
+}

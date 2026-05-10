@@ -139,7 +139,7 @@ export function detectSafetyTripwire(input: string): SafetyTripwireResult {
 //   - Use cautious framing like "if it is safe to do so."
 // ---------------------------------------------------------------------------
 
-type ToolKey = "before-send" | "repair" | "planner" | "checkin";
+type ToolKey = "before-send" | "repair" | "planner" | "checkin" | "reality-check";
 
 const SAFETY_NOTE =
   "WifeChat is not therapy or emergency support. If you may be in immediate danger, call your local emergency number. In the US you can also reach 988 (Suicide & Crisis Lifeline) or the National Domestic Violence Hotline at 1-800-799-7233 (text START to 88788).";
@@ -184,11 +184,23 @@ type CheckinShape = {
   connectionAction: string;
 };
 
+type RealityCheckShape = {
+  whatSeemsUnderstandable: string;
+  whatToSlowDownOn: string;
+  factsVsAssumptions: string[];
+  boundaryOrSafetyCheck: string;
+  likelyNeed: string;
+  nextBestStep: string;
+  suggestedPath: "get-support";
+  optionalDraft?: string;
+};
+
 export type SafetyResult =
   | BeforeSendShape
   | RepairShape
   | PlannerShape
-  | CheckinShape;
+  | CheckinShape
+  | RealityCheckShape;
 
 function buildBeforeSend(_category: SafetyTripwireCategory): BeforeSendShape {
   return {
@@ -266,6 +278,26 @@ function buildCheckin(_category: SafetyTripwireCategory): CheckinShape {
   };
 }
 
+function buildRealityCheck(_category: SafetyTripwireCategory): RealityCheckShape {
+  return {
+    whatSeemsUnderstandable:
+      "It makes sense that this feels urgent or upsetting. When safety may be involved, your reaction deserves care and support rather than quick analysis.",
+    whatToSlowDownOn:
+      "Slow down on trying to solve this through the perfect message right now. A conversation can wait until you are somewhere safe and supported.",
+    factsVsAssumptions: [
+      "Fact: you described language or behavior that may involve safety risk.",
+      "Fact: WifeChat is not therapy or emergency support.",
+      "Next check: if you may be in immediate danger, use local emergency help first.",
+    ],
+    boundaryOrSafetyCheck: `${SAFETY_OPENER} ${SAFETY_NOTE}`,
+    likelyNeed:
+      "The clearest need is safety, support, and a grounded next step with someone qualified or trusted.",
+    nextBestStep:
+      "If you may be in immediate danger, call your local emergency number. If it is safe to do so, contact someone you trust or a trained advocate before responding.",
+    suggestedPath: "get-support",
+  };
+}
+
 export function buildSafetyResult(
   tool: ToolKey,
   category: SafetyTripwireCategory,
@@ -279,5 +311,7 @@ export function buildSafetyResult(
       return buildPlanner(category);
     case "checkin":
       return buildCheckin(category);
+    case "reality-check":
+      return buildRealityCheck(category);
   }
 }

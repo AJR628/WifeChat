@@ -115,7 +115,7 @@ Update this table as work lands.
 | --- | --- | --- | --- |
 | 3.0 Front-door/doc sync | Verified | ChatGPT/Codex | README and replit.md link the active Phase 3 plan and context-envelope spec. |
 | 3.1 Backend audit + route contract plan | Verified | Codex | Backend audit saved in `docs/PHASE_3_1_BACKEND_AUDIT.md`; route/codegen/test ownership verified before route work. |
-| 3.2 Backend Reality Check route | Planned | Codex | Add bounded route, strict schema, context helpers, tests. |
+| 3.2 Backend Reality Check route | Verified | Codex | Bounded route, strict schema, context helpers, OpenAPI/codegen, and backend tests shipped. |
 | 3.3 Mobile context-envelope builder | Planned | Codex | Add explicit context builder/client function, no UI redesign. |
 | 3.4 Start Loop UX + initial CTA | Planned | Replit Agent | Simplify form, add Get Perspective, save result into Loop. |
 | 3.5 Ongoing Loop guidance polish | Planned | Replit Agent/Codex | Add Loop-level follow-up using Reality Check route, still bounded. |
@@ -265,6 +265,17 @@ type RealityCheckResult = {
 
 Response envelope should match the existing coach route style unless Phase 3 deliberately updates the contract in docs/tests/codegen.
 
+### Implementation contract
+
+- Route: `POST /api/coach/reality-check`.
+- Request envelope is strict: `action` must be `"reality-check"`, `request.text` is required, trimmed, non-empty, and capped at 4,000 characters; context objects reject unknown fields, arrays are capped, and the total serialized envelope is capped near 12,000 characters.
+- Response envelope stays consistent with existing coach routes: `{ tool: "reality-check", result, safety? }`.
+- Backend helper ownership: `artifacts/api-server/src/coach/contextEnvelope.ts` owns parsing, bounds, metadata, and safety text extraction; `artifacts/api-server/src/coach/promptContext.ts` owns ordered untrusted context rendering.
+- Safety scanning must inspect `request.text`, Loop fields, recent messages, User Communication Profile strings, Voice Profile strings, Relationship Profile strings, and included saved lessons before rate limiting or provider calls.
+- OpenAPI/codegen parity is required: update `lib/api-spec/openapi.yaml`, run `corepack pnpm --filter @workspace/api-spec run codegen`, and include generated client/schema output.
+- Backend tests must cover valid minimal/context requests, validation failures, safety from context text, provider-skip safety intercepts, missing credentials, provider bad output when feasible, `/api/chat` absence, and `/api/coach/session` absence.
+- Guardrails remain: no generic chat/session route, no mobile UI/native keyboard/dependency changes, no direct OpenAI calls outside backend, no unsafe logging, and no safety-trigger broadening.
+
 ### Prompt stance
 
 Reality Check must follow the product stance:
@@ -319,6 +330,42 @@ rg -n "req\.body|raw|prompt|messages|parsed|completion" artifacts/api-server/src
 ```
 
 The grep above is a review aid, not an automatic failure by itself. Review any matches for unsafe raw-content logging.
+
+### Implementation note
+
+Verified 2026-05-10 from `C:\dev\WifeChat`.
+
+Files changed:
+
+- `artifacts/api-server/src/routes/coach.ts`
+- `artifacts/api-server/src/lib/safety.ts`
+- `artifacts/api-server/src/coach/contextEnvelope.ts`
+- `artifacts/api-server/src/coach/promptContext.ts`
+- `artifacts/api-server/tests/api.integration.test.ts`
+- `artifacts/api-server/tests/safety.unit.test.ts`
+- `lib/api-spec/openapi.yaml`
+- generated API files under `lib/api-client-react/src/generated` and `lib/api-zod/src/generated`
+
+What shipped:
+
+- Added bounded `POST /api/coach/reality-check`.
+- Preserved coach route order: kill switch, passcode, strict validation, safety intercept, rate limit, provider credentials, OpenAI call, schema validation/response.
+- Added strict context-envelope validation, total envelope bound, generated-Zod validation base, explicit strict-key checks, safety-text extraction, and ordered untrusted context rendering.
+- Added schema-shaped Reality Check safety fallback with `suggestedPath: "get-support"`.
+- Added OpenAPI/codegen parity and backend tests for valid requests, validation failures, context safety scanning, safety provider-skip, missing credentials, bad provider output, `/api/chat` absence, and `/api/coach/session` absence.
+
+Checks run:
+
+- `corepack pnpm exec tsc --build lib/api-zod/tsconfig.json` passed.
+- `corepack pnpm -w run typecheck:libs` passed.
+- `corepack pnpm --filter @workspace/api-server run typecheck` passed.
+- `corepack pnpm --filter @workspace/api-server test` passed: 55 tests, 0 failures.
+- Guardrail scans for generic routes, mobile/native secrets, and raw-content logging patterns were reviewed.
+
+Notes:
+
+- `corepack pnpm --filter @workspace/api-spec run codegen` generated the expected files but failed on this Windows PATH at its second step because the package script invokes bare `pnpm`. The equivalent generation and library typecheck were run with `corepack pnpm exec orval --config ./orval.config.ts` and `corepack pnpm -w run typecheck:libs`.
+- No separate Phase 3.2 plan doc was created.
 
 ## Subphase 3.3 — Mobile context-envelope builder
 
