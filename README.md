@@ -12,9 +12,10 @@ Read these documents in order before making product, prompt, API, mobile, web, o
 
 1. [`docs/PRODUCT_SSOT.md`](docs/PRODUCT_SSOT.md) — product source of truth: purpose, target user, Loops, personalization model, UI/UX principles, monetization posture, and agent rules.
 2. [`docs/LOOP_PRODUCT_BUILD_SPEC.md`](docs/LOOP_PRODUCT_BUILD_SPEC.md) — implementation bridge for building the Loop-first product from the SSOT into this repo.
-3. [`replit.md`](replit.md) — current workspace map, stack, commands, API safety posture, privacy language, and deployment assumptions.
-4. [`docs/IOS_KEYBOARD_EXTENSION_PLAN.md`](docs/IOS_KEYBOARD_EXTENSION_PLAN.md) — native iOS keyboard-extension source of truth.
-5. [`docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md`](docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md) — production safety/hardening plan for API, privacy, provider usage, tests, and operational posture.
+3. [`docs/AI_CONTEXT_ENVELOPE_SPEC.md`](docs/AI_CONTEXT_ENVELOPE_SPEC.md) — source of truth for which local Loop/profile context can be sent to AI routes, when it is sent, and how it stays bounded/privacy-safe.
+4. [`replit.md`](replit.md) — current workspace map, stack, commands, API safety posture, privacy language, and deployment assumptions.
+5. [`docs/IOS_KEYBOARD_EXTENSION_PLAN.md`](docs/IOS_KEYBOARD_EXTENSION_PLAN.md) — native iOS keyboard-extension source of truth.
+6. [`docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md`](docs/WIFECHAT_PRODUCTION_SAFETY_PLAN.md) — production safety/hardening plan for API, privacy, provider usage, tests, and operational posture.
 
 If those docs disagree with code, stop and report the drift before changing behavior unless the task explicitly asks you to resolve it.
 
@@ -61,6 +62,8 @@ This is a pnpm workspace monorepo.
 | `artifacts/wife-chat-mobile` | Expo Router mobile app plus committed native iOS output for keyboard-extension work. |
 | `artifacts/api-server` | Express API serving `/api/healthz` and `/api/coach/*`. The backend is the only place that calls OpenAI/cloud AI providers. |
 | `docs/PRODUCT_SSOT.md` | Product direction and agent guardrails. |
+| `docs/LOOP_PRODUCT_BUILD_SPEC.md` | Loop-first implementation plan and phase guardrails. |
+| `docs/AI_CONTEXT_ENVELOPE_SPEC.md` | AI context envelope rules for safe, bounded, user-initiated context injection. |
 | `docs/IOS_KEYBOARD_EXTENSION_PLAN.md` | Native keyboard-extension plan and privacy constraints. |
 | `replit.md` | Detailed workspace, command, API, logging, safety, and privacy reference. |
 
@@ -162,6 +165,8 @@ The intended context stack is:
 6. current request
 
 The LLM should not freely invent or rewrite the user’s system prompt. Product-owned safety rules always win.
+
+Local Loop/profile context is not uploaded passively. Context is sent only when the user taps an AI action, and only the relevant context for that action should be included. See [`docs/AI_CONTEXT_ENVELOPE_SPEC.md`](docs/AI_CONTEXT_ENVELOPE_SPEC.md).
 
 ## Production mindset
 
