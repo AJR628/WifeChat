@@ -48,7 +48,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="rituals"
         options={{
-          title: "Rituals",
+          title: "Maintain",
           tabBarIcon: ({ color, size }) => (
             <Feather name="sun" size={size} color={color} />
           ),
