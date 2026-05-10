@@ -8,7 +8,9 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 Start with `README.md` for repo-level orientation. Product intent lives in
 `docs/PRODUCT_SSOT.md`; the implementation bridge for building the Loop-first
-product in this repo lives in `docs/LOOP_PRODUCT_BUILD_SPEC.md`. Read both
+product in this repo lives in `docs/LOOP_PRODUCT_BUILD_SPEC.md`. AI context
+injection rules live in `docs/AI_CONTEXT_ENVELOPE_SPEC.md`. The active Phase 3
+implementation plan lives in `docs/PHASE_3_REALITY_CHECK_PLAN.md`. Read these
 before changing product IA, prompts, API routes, local persistence, generated
 clients, native keyboard behavior, or user-facing privacy/safety copy.
 
@@ -61,6 +63,11 @@ Expo Router app for the mobile WifeChat experience. Native iOS output is
 committed under `artifacts/wife-chat-mobile/ios` so the Xcode custom keyboard
 extension target can be versioned. The static keyboard scaffold and native
 maintenance policy live in `docs/IOS_KEYBOARD_EXTENSION_PLAN.md`.
+
+Current mobile product direction is Loop-first. Phase 2 added local Loop shell,
+local Loop archive, Maintenance Mode shell, and local data controls. Phase 3
+should add bounded Reality Check + AI context-envelope v1; follow
+`docs/PHASE_3_REALITY_CHECK_PLAN.md`.
 
 ### `artifacts/api-server` — Express API
 
