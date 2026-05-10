@@ -117,7 +117,7 @@ Update this table as work lands.
 | 3.1 Backend audit + route contract plan | Verified | Codex | Backend audit saved in `docs/PHASE_3_1_BACKEND_AUDIT.md`; route/codegen/test ownership verified before route work. |
 | 3.2 Backend Reality Check route | Verified | Codex | Bounded route, strict schema, context helpers, OpenAPI/codegen, and backend tests shipped. |
 | 3.3 Mobile context-envelope builder | Verified | Codex | Explicit Reality Check context builder/client added, no UI redesign. |
-| 3.4 Start Loop UX + initial CTA | Planned | Replit Agent | Simplify form, add Get Perspective, save result into Loop. |
+| 3.4 Start Loop UX + initial CTA | Implemented | Replit Agent | Simplified form (whatHappened only required, optional fields behind toggle, title auto-generated), Get Perspective CTA calls Reality Check and saves artifact into Loop, Save without AI CTA, duplicate-safe retry via saveCurrentLoopDraft(), error banner, reality-check artifact label fixed in Loop detail. |
 | 3.5 Ongoing Loop guidance polish | Planned | Replit Agent/Codex | Add Loop-level follow-up using Reality Check route, still bounded. |
 | 3.6 Phase closeout | Planned | ChatGPT/Codex | Docs/status update, drift check, App Store/privacy copy check. |
 
@@ -553,6 +553,36 @@ Manual checks on Expo Go:
 - failed request preserves Loop but not artifact
 - Save without AI still works
 - standalone tools still work
+
+### Implementation note
+
+Implemented 2026-05-10 by Replit Agent.
+
+Files changed:
+
+- `artifacts/wife-chat-mobile/app/loop/new.tsx`
+- `artifacts/wife-chat-mobile/app/loop/[id].tsx`
+- `artifacts/wife-chat-mobile/lib/loopStore.ts`
+- `docs/PHASE_3_REALITY_CHECK_PLAN.md`
+
+What shipped:
+
+- Rebuilt `app/loop/new.tsx`: `whatHappened` is the only required field. All other fields (title, emotion, interpretation, need, consideringDoing, nextStep, relationshipType) live behind an "Add more context" toggle. Header Save button removed. Primary "Get perspective" CTA and secondary "Save without AI" CTA placed at the bottom of the form.
+- `saveCurrentLoopDraft()` local helper: creates a Loop on first tap, updates the same Loop on retry — no duplicate Loops if the AI call fails and the user retries or edits fields.
+- `handleGetPerspective()`: saves draft → `buildRealityCheckEnvelope` → `sendRealityCheck` → constructs `LoopMessage` (user + assistant) and `GeneratedArtifact` with `payload.text` for preview → `appendLoopInteraction` → `router.replace`. On failure: keeps saved Loop, shows inline error banner with safe message (no provider internals), both CTAs re-enabled for retry.
+- `handleSaveWithoutAI()`: saves draft → `router.replace`. Uses the same `saveCurrentLoopDraft()` so an already-saved Loop is reused.
+- `CreateLoopInput.title` made optional in `loopStore.ts`. `createLoop` auto-generates a title from the first 60 characters of `whatHappened`, or a date-based fallback if `whatHappened` is empty.
+- Added `"reality-check"` case to `artifactToolLabel` in `[id].tsx` → returns `"Reality Check"`.
+- Privacy note updated: "Saved on this device. When you tap Get perspective, the relevant text is sent to the WifeChat API and AI provider."
+- Pre-existing stale `lib/api-client-react` dist (built before 3.2) rebuilt via `corepack pnpm -w run typecheck:libs` so `RealityCheckEnvelope` and `RealityCheckRequest` resolve correctly.
+
+Checks run:
+
+- Baseline `corepack pnpm --filter @workspace/wife-chat-mobile run typecheck` revealed stale dist; rebuilt with `typecheck:libs`; baseline then passed clean.
+- Post-implementation `corepack pnpm --filter @workspace/wife-chat-mobile run typecheck` passed: 0 errors.
+- Generic route scan: no `/api/chat` or `/api/coach/session` in runtime files.
+- Mobile secret scan: no `OPENAI_API_KEY`, `AI_INTEGRATIONS`, `APP_PASSCODE`, direct `OpenAI` import, or `x-app-passcode` in mobile runtime code.
+- Mobile logging scan: no `console.`, `logger`, `analytics`, `captureException`, or `captureMessage` in `app/` or `lib/`.
 
 ## Subphase 3.5 — Ongoing Loop guidance polish
 

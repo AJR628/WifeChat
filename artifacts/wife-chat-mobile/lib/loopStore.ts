@@ -10,8 +10,17 @@ function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 }
 
+function generateTitle(whatHappened: string): string {
+  const trimmed = whatHappened.trim();
+  if (!trimmed) {
+    const d = new Date();
+    return `Loop – ${d.toLocaleString("en-US", { month: "short", day: "numeric" })}`;
+  }
+  return trimmed.length > 60 ? trimmed.slice(0, 57) + "…" : trimmed;
+}
+
 export type CreateLoopInput = {
-  title: string;
+  title?: string;
   relationshipType?: string;
   whatHappened: string;
   emotion: string;
@@ -38,7 +47,7 @@ export async function createLoop(input: CreateLoopInput): Promise<Loop> {
   const now = Date.now();
   const loop: Loop = {
     id: newId(),
-    title: input.title,
+    title: input.title?.trim() || generateTitle(input.whatHappened),
     relationshipType: input.relationshipType,
     createdAt: now,
     updatedAt: now,

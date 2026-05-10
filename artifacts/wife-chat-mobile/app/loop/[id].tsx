@@ -63,6 +63,8 @@ const COACH_ACTIONS = [
 
 function artifactToolLabel(sourceTool: string): string {
   switch (sourceTool) {
+    case "reality-check":
+      return "Reality Check";
     case "before-send":
       return "Before You Send";
     case "repair":
