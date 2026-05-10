@@ -113,8 +113,8 @@ Update this table as work lands.
 
 | Subphase | Status | Owner | Summary |
 | --- | --- | --- | --- |
-| 3.0 Front-door/doc sync | Planned | ChatGPT/Codex | Link this plan from README/replit and confirm Phase 2 state. |
-| 3.1 Backend audit + route contract plan | Planned | Codex | Audit API tests/spec/codegen ownership before route work. |
+| 3.0 Front-door/doc sync | Verified | ChatGPT/Codex | README and replit.md link the active Phase 3 plan and context-envelope spec. |
+| 3.1 Backend audit + route contract plan | Verified | Codex | Backend audit saved in `docs/PHASE_3_1_BACKEND_AUDIT.md`; route/codegen/test ownership verified before route work. |
 | 3.2 Backend Reality Check route | Planned | Codex | Add bounded route, strict schema, context helpers, tests. |
 | 3.3 Mobile context-envelope builder | Planned | Codex | Add explicit context builder/client function, no UI redesign. |
 | 3.4 Start Loop UX + initial CTA | Planned | Replit Agent | Simplify form, add Get Perspective, save result into Loop. |
