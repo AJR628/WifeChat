@@ -60,10 +60,11 @@ async function postRealityCheck(body: unknown): Promise<Response> {
 async function withMockedOpenAIResponse<T>(
   modelContent: string,
   fn: () => Promise<T>,
-): Promise<{ result: T; openAiCalled: boolean; openAiCalledUrl: string }> {
+): Promise<{ result: T; openAiCalled: boolean; openAiCalledUrl: string; openAiRequestPayload: unknown }> {
   const originalFetch = globalThis.fetch;
   let openAiCalled = false;
   let openAiCalledUrl = "";
+  let openAiRequestPayload: unknown;
   globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const url =
       typeof input === "string"
@@ -74,6 +75,13 @@ async function withMockedOpenAIResponse<T>(
     if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(url)) {
       openAiCalled = true;
       openAiCalledUrl = url;
+      if (typeof init?.body === "string") {
+        try {
+          openAiRequestPayload = JSON.parse(init.body) as unknown;
+        } catch {
+          openAiRequestPayload = undefined;
+        }
+      }
       return Promise.resolve(
         new Response(
           JSON.stringify({
@@ -101,7 +109,7 @@ async function withMockedOpenAIResponse<T>(
 
   try {
     const result = await fn();
-    return { result, openAiCalled, openAiCalledUrl };
+    return { result, openAiCalled, openAiCalledUrl, openAiRequestPayload };
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -329,6 +337,45 @@ describe("safety intercept", () => {
 });
 
 describe("POST /api/coach/reality-check", () => {
+  it("sends a strict provider schema with every declared Reality Check field required", async () => {
+    const saved = saveCoachEnv();
+    clearCoachEnv();
+    process.env["OPENAI_API_KEY"] = "sk-fake-not-used-in-tests";
+    try {
+      const { openAiRequestPayload } = await withMockedOpenAIResponse(
+        JSON.stringify(validRealityCheckResult),
+        () => postRealityCheck({
+          action: "reality-check",
+          request: { text: "They got quiet after I asked about tonight, and now I feel anxious." },
+        }),
+      );
+
+      const providerRequest = openAiRequestPayload as {
+        response_format?: {
+          json_schema?: {
+            strict?: unknown;
+            schema?: {
+              properties?: Record<string, unknown>;
+              required?: string[];
+            };
+          };
+        };
+      };
+      const jsonSchema = providerRequest.response_format?.json_schema;
+      const schema = jsonSchema?.schema;
+      assert.equal(jsonSchema?.strict, true);
+      assert.ok(schema?.properties);
+      assert.ok(Array.isArray(schema.required));
+      assert.deepEqual(
+        [...schema.required].sort(),
+        Object.keys(schema.properties).sort(),
+      );
+      assert.ok(schema.required.includes("optionalDraft"));
+    } finally {
+      restoreCoachEnv(saved);
+    }
+  });
+
   it("accepts a valid minimal request and returns a schema-shaped mocked result", async () => {
     const saved = saveCoachEnv();
     clearCoachEnv();
@@ -352,6 +399,29 @@ describe("POST /api/coach/reality-check", () => {
       };
       assert.equal(body.tool, "reality-check");
       assert.deepEqual(body.result, validRealityCheckResult);
+    } finally {
+      restoreCoachEnv(saved);
+    }
+  });
+
+  it("normalizes an empty optionalDraft from the strict provider response", async () => {
+    const saved = saveCoachEnv();
+    clearCoachEnv();
+    process.env["OPENAI_API_KEY"] = "sk-fake-not-used-in-tests";
+    try {
+      const { result: res } = await withMockedOpenAIResponse(
+        JSON.stringify({ ...validRealityCheckResult, optionalDraft: "" }),
+        () => postRealityCheck({
+          action: "reality-check",
+          request: { text: "We had a confusing disagreement." },
+        }),
+      );
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as {
+        result?: Record<string, unknown>;
+      };
+      assert.deepEqual(body.result, validRealityCheckResult);
+      assert.equal(Object.prototype.hasOwnProperty.call(body.result ?? {}, "optionalDraft"), false);
     } finally {
       restoreCoachEnv(saved);
     }

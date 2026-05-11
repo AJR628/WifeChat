@@ -353,6 +353,7 @@ What shipped:
 - Added strict context-envelope validation, total envelope bound, generated-Zod validation base, explicit strict-key checks, safety-text extraction, and ordered untrusted context rendering.
 - Added schema-shaped Reality Check safety fallback with `suggestedPath: "get-support"`.
 - Added OpenAPI/codegen parity and backend tests for valid requests, validation failures, context safety scanning, safety provider-skip, missing credentials, bad provider output, `/api/chat` absence, and `/api/coach/session` absence.
+- Live provider bugfix: the internal strict structured-output schema now requires every declared Reality Check property, including `optionalDraft`; the model is instructed to return `""` when no draft is appropriate, and the backend normalizes that empty marker away before the public `optionalDraft?` response contract.
 
 Checks run:
 

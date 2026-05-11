@@ -323,6 +323,7 @@ const REALITY_CHECK_RESULT_SCHEMA = {
     "likelyNeed",
     "nextBestStep",
     "suggestedPath",
+    "optionalDraft",
   ],
   properties: {
     whatSeemsUnderstandable: {
@@ -359,7 +360,7 @@ const REALITY_CHECK_RESULT_SCHEMA = {
     },
     optionalDraft: {
       type: "string",
-      description: "Optional short message draft only if communication is appropriate and safe.",
+      description: "Optional short message draft only if communication is appropriate and safe. Return an empty string when no draft is appropriate.",
     },
   },
 };
@@ -378,6 +379,13 @@ const REALITY_CHECK_RESULT_KEYS = new Set([
 function realityCheckResultHasOnlyKnownKeys(value: unknown): boolean {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   return Object.keys(value).every((key) => REALITY_CHECK_RESULT_KEYS.has(key));
+}
+
+function normalizeRealityCheckResult(value: unknown): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+  const result = { ...(value as Record<string, unknown>) };
+  if (result.optionalDraft === "") delete result.optionalDraft;
+  return result;
 }
 
 // Phase 2: lazy singleton OpenAI client. Constructed on first successful
@@ -695,9 +703,10 @@ async function runRealityCheck(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const normalizedResult = normalizeRealityCheckResult(parsed);
     const response = RealityCheckResponseSchema.safeParse({
       tool: "reality-check",
-      result: parsed,
+      result: normalizedResult,
     });
     if (!response.success) {
       req.log.error(
